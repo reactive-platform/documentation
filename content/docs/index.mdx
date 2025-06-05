@@ -1,11 +1,217 @@
 ---
-title: Hello World
-description: Your first document
+title: Getting started
+description: What is it all about, few examples and how to setup.
 ---
 
-Welcome to the docs! You can start writing documents in `/content/docs`.
+## What is Reactive UI?
 
-## What is Next?
+Reactive is a declarative, reactive UI library tailored for performance and composability.
+It empowers developers to build dynamic, data-driven interfaces by binding the UI directly to the application state.
+Instead of manually updating the UI, changes to data automatically propagate to the view.
+
+With Reactive UI, you can:
+- Define views as functions of state.
+- Automatically update the UI when the state changes.
+- Compose components in a modular and predictable way.
+
+This approach reduces boilerplate, avoids bugs caused by inconsistent UI state, and scales well for complex applications.
+
+---
+## Why do we need a new solution?
+
+Currently, **BSML (Beat Saber Markup Language)** is the only and most popular solution for creating UI in Beat Saber mods.
+While it has served the modding community well, it's beginning to show its limitations — especially as the complexity of modern UIs increases.
+
+### 📄 XML-Based = Rigid and Verbose
+
+BSML uses **XML for markup**, which comes with several drawbacks:
+
+- Very limited logic capabilities (no conditions, loops, or reactive binding)
+- UI is often spread across multiple files, making the codebase harder to follow
+- Component composition is clunky and error-prone
+
+You're often forced to resort to code-behind to make anything dynamic — defeating the purpose of a declarative UI.
+
+### 🎭 Missing Modern UI Essentials
+
+BSML lacks many **quality-of-life features** expected in modern UIs:
+
+- No built-in animation system
+- No reactive state bindings
+- Poor layout flexibility (especially for dynamic UIs)
+
+The result is often a static, lifeless interface with hardcoded behavior, and layout hacks.
+
+---
+
+## Why choose Reactive over BSML?
+
+**ReactiveUI** offers several key advantages for developers who prefer a more code-driven and reactive approach:
+
+### 🔄 Fully Reactive by Design
+
+ReactiveUI is built around **reactive state management**.
+When your data changes, the UI updates automatically — no need for manual refreshes or event wiring.
+
+### 🧠 Logic-First, Not Markup-First
+
+ReactiveUI keeps your UI logic in **C# code**, right where your state and business logic live.
+This results in better cohesion, easier debugging, and simpler testing — without juggling XML or markup files.
+
+### 🧱 Composable and Modular
+
+Components are just C# objects. You can **compose them like functions**, nest them conditionally, or dynamically generate them based on app state.
+This makes layouts more **flexible and expressive** than static markup.
+
+### 📐 Modern Layout Engine (Yoga)
+
+ReactiveUI uses **Meta’s Yoga layout engine**,
+the same system used by React Native and other high-performance UI frameworks.
+This gives you access to:
+
+- Flexbox-based layout
+- Advanced UI adaptivity
+- Dynamic sizing and alignment
+
+All configured via familiar C# APIs instead of markup attributes.
+
+### 🧰 Better IDE Support
+
+Since ReactiveUI is fully written in C#, you benefit from:
+
+- IntelliSense
+- Type checking
+- Code navigation
+- Refactoring tools
+
+There’s **no context switching** between your UI and logic — it’s all in one place.
+
+### 🚀 Performance-Oriented
+
+ReactiveUI tracks **fine-grained dependencies** and re-renders only what’s necessary.
+This ensures high performance, even for rapidly updating or state-heavy components.
+
+---
+
+# Few samples
+
+So, let's omit redundant discussions and move to the samples to visually show how easy is it to make complicated components.
+
+### Counter
+
+```csharp
+class Counter : ReactiveComponent {
+    private ObservableValue<int> _value;
+
+    protected override GameObject Construct() {
+        // Calling Remember requires specifying a default value
+        _value = Remember(0);
+
+        return new Label()
+            .Animate(_value, (x, y) => x.Text = $"Value: {y}")
+            .Use();
+    }
+
+    public void Tick() {
+        _value.Value++;
+    }
+}
+```
+This example shows how to create a simple text counter that will increment with each `Tick` call.
+It uses `Remember` method to create an observable state that can be used to bind components.
+Pretty easy and straightforward, isn't it?
+Let's add a button to complicate it a bit:
+
+```csharp
+class ButtonCounter : ReactiveComponent {
+    protected override GameObject Construct() {
+        var value = Remember(0);
+
+        return new Clickable {
+            OnClick = () => {
+                value.Value++;
+            },
+
+            Children = {
+                new Label()
+                    .Animate(value, (x, y) => x.Text = $"Value: {y}")
+                    .WithRectExpand()
+            }
+        }.Use();
+    }
+}
+```
+Now the value updates each time the button is pressed
+(the label acts like a button here as `Clickable` is a contentless wrapper),
+so the label text is also changes following the observable.
+
+### Animated button
+
+```csharp
+class ButtonCounter : ReactiveComponent {
+    protected override GameObject Construct() {
+        var value = RememberAnimated(1f, 200.ms());
+
+        return new ImageButton()
+            .WithListener(x => x.IsHovered, x => value.Value = x ? 1.2f : 1f)
+            .Animate(value, (x, y) => x.ContentTransform.localScale = y * Vector3.one)
+            .Use();
+    }
+}
+```
+This example shows how to scale a button based on if it's hovered or not.
+As you can see, alongside with `Remember`, there is a `RememberAnimated` method.
+Unlike its neighbor, it creates an animated observable value
+that interpolates between the latest that and the target one.
+Furthermore, the component involves using `WithListener` method which is a shortcut for subscribing to `NotifyPropertyChanged`.
+
+## Layout
+
+We've talked about some simple cases where advanced layout is not needed.
+But imagine a situation when your layout to be reusable and adaptive: it would be almost impossible with pure unity.
+So here comes Yoga, a web-like layout engine which is tightly integrated with the library.
+
+### Reimagined ButtonCounter
+
+Let's return to one of the previous examples and take as a base for the next one:
+```csharp
+class ButtonCounter : ReactiveComponent {
+    protected override GameObject Construct() {
+        var value = Remember(0);
+
+        return new Clickable {
+                OnClick = () => {
+                    value.Value++;
+                },
+
+                Children = {
+                    new Label()
+                        .Animate(value, (x, y) => x.Text = $"Value: {y}")
+                        .AsFlexItem()
+                }
+            }
+            .AsFlexItem(maxSize: new() { x = 50f })
+            .AsFlexGroup(padding: new() { top = 1f })
+            .Use();
+    }
+}
+```
+So what exactly happens here? We've removed the `WithRectExpand` method that was expanding the label to fit the parent,
+and added not only `AsFlexItem`, but `AsFlexGroup` as well. TLDR; Layout in ReactiveUI involves three types of nodes:
+- Node
+- Controller
+- Leaf Node (we'll talk about it later)
+
+Basically, any Node instance is controlled by the parent's Controller.
+If there is no controller on the parent component, the node will be outside the layout flow.
+Speaking easily: `AsFlexItem` without an `AsFlexGroup` does nothing unless called on a root node.
+
+Let's return to the example. So, once again, what is happening there?
+The `AsFlexItem` call on the label makes it enter the layout flow, without any additional conditions (no call args).
+The same call on the clickable container makes it a layout node with a maxSize condition, so the container won't be able to grow up more than 50pt.
+But it's not a controller node yet, that's why we call `AsFlexGroup` which assigns a controller to the node making it start controlling its' children.
+
+The whole system sounds a bit complicated, but trust me, it's not that difficult once you dive into it.
 
 <Cards>
   <Card title="Learn more about Next.js" href="https://nextjs.org/docs" />

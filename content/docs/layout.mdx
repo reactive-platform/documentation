@@ -1,13 +1,12 @@
 ---
-title: Layout System
-description: How to build flexible and responsive layouts with ReactiveUI.
+title: Layout
+description: How the layout system works.
 ---
 
 ## The Power of Flexbox
 
-ReactiveUI integrates **Meta's Yoga layout engine**, a high-performance implementation of the popular **Flexbox** model from web development. This means you can build complex, responsive, and resolution-independent UIs directly in C# with a familiar and powerful API.
-
-Forget manual `RectTransform` calculations. With ReactiveUI's layout system, you describe how components should behave, and Yoga handles the rest.
+ReactiveUI uses **Yoga**, a high-performance implementation of the popular **Flexbox** model from web development.
+This means you can build complex, responsive, and resolution-independent UIs with a familiar and powerful API.
 
 Key concepts of the layout system:
 - **Flex Container**: A component that contains other components and defines how they are laid out. You create one with the `AsFlexGroup()` extension method.
@@ -16,170 +15,98 @@ Key concepts of the layout system:
 
 ---
 
-## Creating a Layout Root: `AsFlexGroup`
+## How reactive works with Yoga
 
-Any component that needs to arrange its children using flexbox must be configured as a flex container. This is done using the `.AsFlexGroup()` extension method.
+In advance, this section is not supposed to tell you how to use the Yoga's flexbox model, that info is already available on the Yoga's website (https://www.yogalayout.dev/docs/about-yoga).
+Instead, we will talk about how Yoga is implemented in reactive and what you should know to use it flawlessly.
 
-```csharp
-new Container()
-    .AsFlexGroup(
-        direction: FlexDirection.Row,
-        justifyContent: Justify.Center,
-        alignItems: Align.Center
-    )
-```
+So, let's start with the basics: in Yoga every node is a controller and an item at the same time, this means that you add properties and don't care about the rest.
 
-The `AsFlexGroup` method has several parameters to control the layout of its children:
-
-| Parameter        | Type                                | Description                                                                                               |
-| ---------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `direction`      | `FlexDirection`                     | Defines the main axis. Can be `Row` (default), `RowReverse`, `Column`, or `ColumnReverse`.                |
-| `justifyContent` | `Justify`                           | How children are distributed along the main axis. e.g., `FlexStart`, `Center`, `FlexEnd`, `SpaceBetween`.    |
-| `alignItems`     | `Align`                             | How children are aligned along the cross axis. e.g., `FlexStart`, `Center`, `FlexEnd`, `Stretch`.           |
-| `alignContent`   | `Align`                             | How lines are aligned when there are multiple lines (see `wrap`). Only applies if `wrap` is not `NoWrap`. |
-| `wrap`           | `Wrap`                              | Whether items should wrap to a new line if they don't fit. `NoWrap` (default), `Wrap`, `WrapReverse`.      |
-| `padding`        | `YogaFrame`                         | The space between the container's edge and its children. e.g., `new YogaFrame(10)` for all sides.         |
-| `gap`            | `YogaVector`                        | The gap between children. e.g., `new YogaVector(5, 5)` for row and column gaps.                           |
-
-> **Note:** You can initialize `YogaFrame` and `YogaVector` in multiple ways, such as `new YogaFrame(10)` for all sides, or `new() { Top = 5, Bottom = 5 }` to set specific sides.
-
----
-
-## Arranging Components: `AsFlexItem`
-
-Once a component is inside a flex container, you can control its individual layout properties using the `.AsFlexItem()` extension method.
+But Reactive's layout model is designed a little bit different: an item without an explicitly defined controller is NOT in the layout flow unless that item is not a controller itself.
+This means that `.AsFlexItem` without `.AsFlexGroup` on a containing object, does nothing.
 
 ```csharp
-new Label("Hello")
-    .AsFlexItem(
-        flexGrow: 1,
-        alignSelf: Align.Stretch
-    )
-```
-
-`AsFlexItem` provides fine-grained control over a component's sizing, spacing, and alignment within its container.
-
-| Parameter     | Type          | Description                                                                                                   |
-| ------------- | ------------- | ------------------------------------------------------------------------------------------------------------- |
-| `flexGrow`    | `float`       | How much the item should grow to fill available space. A value of `1` means it will take up all available space. |
-| `flexShrink`  | `float`       | How much the item should shrink if there isn't enough space.                                                  |
-| `flexBasis`   | `YogaValue`   | The default size of an item before growing or shrinking. Can be a percentage or a point value.                |
-| `size`        | `YogaVector`  | The fixed size of the item.                                                                                   |
-| `minSize`     | `YogaVector`  | The minimum size of the item.                                                                                 |
-| `maxSize`     | `YogaVector`  | The maximum size of the item.                                                                                 |
-| `margin`      | `YogaFrame`   | The space around the item, outside of its border.                                                             |
-| `alignSelf`   | `Align`       | Overrides the container's `alignItems` for this specific item.                                                |
-| `position`    | `YogaFrame`   | Allows you to position an item absolutely within its container. Requires `positionType` to be `Absolute`.     |
-| `positionType`| `PositionType`| The positioning mode. `Relative` (default) or `Absolute`.                                                     |
-
----
-
-## Example: A Simple Menu
-
-Let's combine these concepts to create a simple vertical menu with a header and three buttons that fill the available space.
-
-```csharp
-class SimpleMenu : ReactiveComponent {
-    protected override GameObject Construct() {
-        return new Container()
-            .AsFlexGroup(
-                direction: FlexDirection.Column,
-                padding: new YogaFrame(10),
-                gap: new YogaVector(5, 0)
-            )
-            .WithChildren(
-                new Label("My Menu")
-                    .AsFlexItem(
-                        alignSelf: Align.Center,
-                        margin: new YogaFrame { Bottom = 10 }
-                    ),
-                new Button("Button 1")
-                    .AsFlexItem(flexGrow: 1),
-                new Button("Button 2")
-                    .AsFlexItem(flexGrow: 1),
-                new Button("Button 3")
-                    .AsFlexItem(flexGrow: 1)
-            )
-            .Use();
+new Background {
+    Children = {
+        new Label {
+            Text = "Hello world"
+        }.AsFlexItem()
     }
-}
+};
 ```
 
-In this example:
-1.  The root `Container` is our flex container, arranging children in a `Column`.
-2.  It has `10` units of padding on all sides and a `5` unit gap between its children.
-3.  The `Label` is centered and has some bottom margin.
-4.  The `Button`s have `flexGrow: 1`, so they expand equally to fill the remaining vertical space. 
+Let's look at this example. That's how it will look in the game:
 
----
+![Broken layout](/assets/layout-broken-1.png)
 
-## Nested Layouts
-
-A powerful feature of the layout system is that any flex item can also be a flex container for its own children. This allows you to build complex, hierarchical layouts by nesting `AsFlexGroup` configurations.
-
-You achieve this by chaining the extension methods. A component becomes both an item in a parent layout and a container for its own children.
+But why so? What just happened? As `Background` does not have a defined controller, it just has grown up to 100x100, which is Unity's rect default size.
+To fix this, we should define a controller by calling `AsFlexGroup` on the `Background`.
 
 ```csharp
-// This component is an item in its parent's layout
-// AND a container for its own children.
-new Layout()
-    .AsFlexGroup(...) // Defines how its children are arranged
-    .AsFlexItem(...)  // Defines how it behaves in its parent
-```
-
----
-
-## Example: Two-Column Card
-
-Let's build a card with an image on the left and a title/subtitle on the right. This requires nesting a vertical layout (`Column`) inside a horizontal one (`Row`).
-
-```csharp
-class InfoCard : ReactiveComponent {
-    protected override GameObject Construct() {
-        // The root component is a Row container
-        return new Container()
-            .AsFlexGroup(
-                direction: FlexDirection.Row,
-                alignItems: Align.Center,
-                padding: new(10),
-                gap: new(10, 0)
-            )
-            .WithChildren(
-                // 1. The Image
-                new WebImage("path/to/image.png")
-                    .AsFlexItem(
-                        size: new() { width = 50, height = 50 }
-                    ),
-
-                // 2. The Text section, which is both an item and a group
-                new Layout()
-                    .AsFlexGroup( // It's a group for the labels
-                        direction: FlexDirection.Column,
-                        gap: new(0, 5)
-                    )
-                    .AsFlexItem( // It's an item in the main row
-                        flexGrow: 1
-                    )
-                    .WithChildren(
-                        new Label("Main Title")
-                            .AsFlexItem(),
-                        new Label("This is a longer subtitle for the card.")
-                            .AsFlexItem()
-                    )
-            )
-            .Use(); // Don't forget .Use() to build the GameObject!
+new Background {
+    Children = {
+        new Label {
+            Text = "Hello world"
+        }.AsFlexItem()
     }
-}
+}.AsFlexGroup();
 ```
 
-In this example:
-1.  The root `Container` is a **Row** that aligns its direct children (`WebImage`, `Layout`).
-2.  The `WebImage` is a simple flex item with a fixed size.
-3.  The `Layout` component is special:
-    *   `.AsFlexItem(flexGrow: 1)` makes it a flex item that expands to fill the available width in the main row.
-    *   `.AsFlexGroup(...)` makes it a **Column** container that arranges its own children (the two `Label`s) vertically.
+Let's take a look at the fixed version:
 
-This nesting pattern is key to building almost any UI you can imagine.
+![Fixed layout](/assets/layout-fixed-1.png)
 
-> **Final Step: `.Use()`**
-> As you can see in the examples, the component declaration chain must end with a call to `.Use()`. This is the final step that takes your declarative definition and constructs the actual `GameObject` in the scene. Without it, nothing will be rendered. 
+By a wave of the magic wand, we've got it to take all available space in the view. Furthermore, the `Label` is at the start now.
+So, we've just added a flex controller that connected the background with the label. Now we can change properties to see what happens:
+
+```csharp
+new Background {
+    Children = {
+        new Label {
+            Text = "Hello world"
+        }.AsFlexItem()
+    }
+}.AsFlexGroup(justifyContent: Justify.Center);
+```
+
+![Fixed layout](/assets/layout-fixed-2.png)
+
+Changing `JustifyContent` led to label being placed at the center. Pretty easy, ain't it?
+Starting from this point, everything works exactly like in Yoga.
+
+## Layout recalculation
+
+So, you've just learned about the layout system in general. But sometimes you need to know how exactly everything works to implement and optimize things.
+The recalculation policy is pretty straightforward. There are three ways of layout recalculation:
+- Immediate (happens immediately)
+- Deferred (happens in LateUpdate)
+- Deferred with transferred intention (basically the same as the previous one, but recalculation intention is transferred to the parent)
+
+In 99% of cases, reactive uses either the second or the third one. But what is that 1 percent?
+Well, sometimes it is necessary to maintain manual layout or have it calculated even that the object is disabled.
+And here comes immediate recalculation: you subscribe to the recalculation of the main flow and cause recalculation in the second flow manually.
+You would ask: why not use Deferred recalculation there, or let it recalculate automatically? That's a good question.
+The answer is that it would cause a 1 frame *gap* that is usually noticeable if you are attentive.
+
+So, let's get back to the deferred recalculation. In general, everything is as simple as you imagine it:
+when a property is updated, it tells the host that its dirty now, so it has to recalculate.
+Why not do it immediately? That's another good one. What we do is bet on the case when multiple properties are updated
+and this way of recalculation allows decreasing recalculations count to just 1.
+
+About the *Deferred with transferred intention*. It's the same as the previous one, but happens when the object is
+not capable of updating the layout itself (e.g., when it's getting disabled), so it transfers the intention to the parent.
+In case there is no parent, it's assumed that the hierarchy is not visible, so no need to recalculate until it gets enabled back.
+
+The whole flow can be explained better with a diagram:
+
+<Mermaid chart={
+  `flowchart LR
+    A(["Component updated"]) --> B{"Disabled? <br>"}
+    B -- Yes <br> --> C["Has parent?"]
+    C -- Yes <br> --> n2["Move to parent <br>"]
+    C -- No <br> --> n4["Defer recalcultion"]
+    B -- No <br> --> n4
+    n2 --> n4
+    C@{ shape: diam}
+    n4@{ shape: subproc}`
+}/>

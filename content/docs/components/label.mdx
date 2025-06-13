@@ -1,0 +1,25 @@
+---
+title: Label
+description: How to display text with the Label component.
+---
+
+![Label Example](/assets/label.png)
+
+The `Label` component is used to display text. It's a wrapper around Unity's `TextMeshProUGUI` and provides a wide range of properties for styling.
+
+```csharp
+new Label {
+    Text = "Hello, World!",
+    FontSize = 6f,
+    Color = Color.yellow,
+    FontStyle = FontStyles.Italic
+}.AsFlexItem()
+```
+
+## Key Properties
+- `Text`: The string content to display.
+- `FontSize`: The size of the font.
+- `Color`: The color of the text.
+- `FontStyle`: e.g., `FontStyles.Bold`, `FontStyles.Italic`.
+- `Alignment`: How the text is aligned within its bounds, e.g., `TextAlignmentOptions.Left`.
+- `RichText`: A boolean to enable or disable rich text tags like `<color>`. 

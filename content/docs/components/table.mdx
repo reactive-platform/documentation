@@ -1,0 +1,91 @@
+---
+title: Table
+description: How to display large, interactive, and filterable datasets with virtualization.
+---
+
+For displaying large or complex collections of data, the `Table` component is the ideal solution. It's a high-performance, virtualized list that only renders the items currently visible on screen, ensuring your UI remains fast and responsive, even with thousands of entries.
+
+`Table` is more powerful than `ListView` and should be your default choice for any non-trivial list of items.
+
+---
+
+## Key Features
+
+The `Table` component is packed with features that are essential for building modern UIs:
+
+- **UI Virtualization**: The core performance feature. `Table` intelligently recycles a small pool of cell components, moving them and updating their data as the user scrolls. This keeps memory usage low and performance high.
+- **Selection Management**: Built-in support for no selection, single-item selection, or multi-item selection.
+- **Programmatic Scrolling**: Easily scroll to a specific item or index in the list.
+- **Filtering**: An extensible filtering system to dynamically change which items are displayed.
+
+The main constraint of this performance is that **all cells in a Table must have the same, fixed height**.
+
+---
+
+## Creating a `Table`
+
+Using a `Table` is very similar to a `ListView`, but you use `TableCell<TItem>` for your cell component.
+
+### 1. Define the Data and the `TableCell`
+
+First, define your data model. Then, create a cell component that inherits from `TableCell<TItem>`.
+
+Inside the cell, you can bind to `ObservableItem` for the data and `ObservableSelected` to change the appearance when the cell is selected.
+
+```csharp
+// Data model
+public class ReplayInfo {
+    public string PlayerName { get; set; }
+    public DateTime Timestamp { get; set; }
+}
+
+// Cell component
+class ReplayCell : TableCell<ReplayInfo> {
+    protected override GameObject Construct() {
+        var background = new Background(); // Will be our selection highlight
+
+        return new Clickable {
+            OnClick = () => SelectSelf(!Selected), // Tell the table to toggle our selection state
+            Children = {
+                background
+                    .AsFlexItem()
+                    .Animate(ObservableSelected, (img, selected) => {
+                        img.Color = selected ? Color.white.ColorWithAlpha(0.2f) : Color.clear;
+                    }),
+
+                new Layout()
+                    .AsFlexGroup(padding: 2f, gap: 2f, alignItems: Align.Center)
+                    .WithChildren(
+                        new Label()
+                            .Animate(ObservableItem, (lbl, data) => lbl.Text = data.PlayerName),
+                        new Label()
+                            .Animate(ObservableItem, (lbl, data) => lbl.Text = data.Timestamp.ToString("yyyy-MM-dd"))
+                    )
+            }
+        }
+        .AsFlexItem(size: new() { y = 10f }) // **Crucially, define a fixed height**
+        .Use();
+    }
+}
+```
+
+### 2. Use the `Table` Component
+
+In your parent component, instantiate the `Table` and provide it with your data. The `Table` component itself is a `ScrollArea`, so you often don't need to wrap it in one.
+
+```csharp
+class ReplayBrowser : ReactiveComponent {
+    protected override GameObject Construct() {
+        var replays = Remember(new List<ReplayInfo> { /* ... data ... */ });
+
+        return new Table<ReplayInfo, ReplayCell> {
+                Items = replays.Value,
+                SelectionMode = SelectionMode.Single
+            }
+            .AsFlexItem(flexGrow: 1) // Make the table fill the available space
+            .Use();
+    }
+}
+```
+
+This creates a vertically scrolling list of replays. When a user clicks a cell, its `OnClick` event calls `SelectSelf()`, which updates the table's selection state, and the `Animate` binding on the background `Image` reacts to the change, creating a visual highlight. 

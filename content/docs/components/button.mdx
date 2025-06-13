@@ -1,0 +1,20 @@
+---
+title: BsButton
+description: How to handle user clicks with the BsButton component.
+---
+
+![Button Example](/assets/bsbutton.png)
+
+`BsButton` is a standard, Beat Saber-styled button that contains a label. It's the most common way to handle user clicks.
+
+```csharp
+new BsButton {
+    Text = "Click Me",
+    OnClick = () => Debug.Log("Button was clicked!")
+}.AsFlexItem()
+```
+
+## Key Properties
+- `OnClick`: An `Action` that is invoked when the button is clicked.
+- `Text`: The text to display on the button. It also exposes other `Label` properties like `FontSize`, `FontStyle`, etc.
+- `Interactable`: A boolean that controls whether the button can be clicked. 

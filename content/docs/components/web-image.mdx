@@ -1,0 +1,36 @@
+---
+title: WebImage
+description: How to display images from a URL.
+---
+
+![WebImage Example](/assets/webimage.png)
+
+`WebImage` is a powerful extension of `Image` that automatically handles downloading and displaying an image from a URL. It includes a built-in loading spinner.
+
+```csharp
+new WebImage {
+    Src = "https://placehold.co/800x200/000000/FFFFFF/png?text=WebImage+Example"
+}.AsFlexItem(size: new() { x = 20, y = 5 })
+```
+
+## Extension
+
+It's possible to load web image on any `Image` with extension method:
+
+```csharp
+new Image()
+.AsFlexItem(size: new() { x = 20, y = 5 })
+.WithWebSource("https://placehold.co/800x200/000000/FFFFFF/png?text=WebImage+Example")
+```
+However, this won't show spinner and empty default sprite.
+
+## File types
+
+- PNG
+- JPG
+- GIF (animations are supported)
+
+## Key Properties
+- `Src`: The source URL of the image to download. If the `Src` is changed, the component will automatically fetch the new image. If set to `null` or an empty string, the image will be cleared.
+- It inherits all other properties from `Image`, like `Color`, `Material`, etc.
+- `Spinner`: The `Spinner` component that is showed during the loading. 

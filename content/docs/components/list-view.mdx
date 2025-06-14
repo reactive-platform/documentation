@@ -1,0 +1,111 @@
+---
+title: ListView
+description: How to efficiently display dynamic lists and grids of data.
+---
+
+`ListView` is a powerful and efficient component for displaying collections of data. It automatically handles the instantiation, recycling, and layout of cell components, ensuring high performance even with very large datasets.
+
+The core idea is to pair a list of data with a component responsible for rendering a single item from that list.
+
+---
+
+![ListView Example](/assets/listview.png)
+
+## Core Concepts
+
+There are two key parts to using a `ListView`:
+
+1.  **The Data (`TItem`)**: This is your plain C# object representing a single piece of data. For example, a `Player`, a `NewsPost`, or a `LevelInfo`.
+2.  **The Cell Component (`TCell`)**: This is a `ReactiveComponent` you create that is responsible for visually representing one `TItem`. This component must inherit from `ListCell<TItem>`.
+
+The `ListView` takes your collection of `TItem`s and, for each one, it spawns an instance of your `TCell` component, automatically feeding it the correct data.
+
+---
+
+## Inline Usage: `ConstructCell`
+
+For very simple cells, you might not want to create a whole new file and class. `ListView<TItem>` (without the second generic argument) offers a `ConstructCell` property for this purpose.
+
+This approach is less common but can be useful for prototyping or simple displays.
+
+```csharp
+class ListComponent : ReactiveComponent {
+    protected override GameObject Construct() {
+        new ListView<int> {
+            ConstructCell = (item) => new Label {
+                Text = item.Value.ToString(),
+                FontSize = item.Value
+            }
+            .AsFlexItem(),
+            Items = new List<int>{ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }
+        }
+        .AsFlexItem()
+        .Use();
+    }
+}
+```
+Here, we provide a delegate that receives the `INotifyValueChanged<TItem>` and returns the constructed component for the cell.
+
+
+## Standard Usage: Creating a `ListCell`
+
+This is the most common and robust way to use `ListView`.
+
+### 1. Define the Data Class
+
+First, have your data model ready.
+
+```csharp
+public class PlayerScore {
+    public string PlayerName { get; set; }
+    public int Score { get; set; }
+}
+```
+
+### 2. Create the Cell Component
+
+Next, create a new component that inherits from `ListCell<TItem>`, where `TItem` is your data class. Inside its `Construct()` method, you can access `Item` or `ObservableItem` to get the data for that cell.
+
+```csharp
+// PlayerScoreCell.cs
+class PlayerScoreCell : ListCell<PlayerScore> {
+    protected override GameObject Construct() {
+        return new Layout()
+            .AsFlexGroup(direction: FlexDirection.Row, gap: 2f, alignItems: Align.Center)
+            .WithChildren(
+                new Label()
+                    .AsFlexItem(flexGrow: 1)
+                    .Animate(ObservableItem, (lbl, data) => lbl.Text = data.PlayerName),
+                new Label()
+                    .AsFlexItem()
+                    .Animate(ObservableItem, (lbl, data) => lbl.Text = $"{data.Score:N0}")
+            )
+            .Use();
+    }
+}
+```
+
+### 3. Use the `ListView`
+
+Now, in your parent component, create the `ListView`, specifying your data and cell types. You populate it by setting its `Items` property.
+
+```csharp
+class Scoreboard : ReactiveComponent {
+    protected override GameObject Construct() {
+        var scores = Remember(new List<PlayerScore> {
+            new() { PlayerName = "Alice", Score = 1500 },
+            new() { PlayerName = "Bob", Score = 1250 },
+        });
+
+        return new ListView<PlayerScore, PlayerScoreCell>()
+            .AsFlexGroup(direction: FlexDirection.Column, gap: 1f) // Lay out the cells
+            .Animate(scores, (listView, scoreList) => listView.Items = scoreList)
+            .AsFlexItem()
+            .Use();
+    }
+}
+```
+In this example, the `ListView` will create a `PlayerScoreCell` for each entry in the `scores` list. Because it's also an `AsFlexGroup`, it arranges these cells in a vertical column with a gap between them.
+
+---
+

@@ -1,0 +1,23 @@
+---
+title: Image
+description: How to display sprites with the Image component.
+---
+
+![Image Example](/assets/imageview.png)
+
+The `Image` component displays a `Sprite` from your assets. It wraps the standard Unity `UI.Image` component.
+
+```csharp
+new Image {
+    Sprite = someSpriteFromResources,
+    Color = Color.red,
+    PreserveAspect = true
+}.AsFlexItem(size: new() { x = 20, y = 20 })
+```
+
+## Key Properties
+- `Sprite`: The `Sprite` asset to display.
+- `Color`: A color tint to apply to the image. The default is `white`.
+- `Material`: An optional `Material` to use for rendering.
+- `ImageType`: The type of image rendering, e.g., `Sliced`, `Tiled`, `Filled`.
+- `PreserveAspect`: A boolean to maintain the sprite's original aspect ratio. 

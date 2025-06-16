@@ -64,6 +64,27 @@ new Background {
 Changing `JustifyContent` led to label being placed at the center. Pretty easy, ain't it?
 Starting from this point, everything works exactly like in Yoga.
 
+### Node types
+
+You already know that there are at least two types of nodes, but further, there is the third one.
+Here is the complete list of node types:
+- Node
+- Controller
+- Leaf Node (that's the third one)
+
+As mentioned previously, *Node* is the most fundamental building block in the layout system.
+*Controller* is a special kind of node that manages or coordinates other nodes.
+But *Leaf Node* is ...?
+This is where things get interesting.
+*Leaf Node* is the same as a standard node except two things:
+- It cannot contain children
+- It is responsible for its own layout measurements
+
+Some components like `Label` or `Image` represent intrinsic content.
+Their dimensions aren't dictated by external layout rules but are determined internally, based on the content they display.
+That’s where the `Measure` method comes in. A *Leaf Node* implements its own `Measure` function to calculate its size based on the content it holds,
+rather than relying on child nodes or layout constraints. This makes them self-contained and perfect for wrapping atomic, content-driven elements.
+
 ### Controller constraints
 
 Another important thing is controller constraints. When we call Yoga's API, it expects us to provide "constraints".

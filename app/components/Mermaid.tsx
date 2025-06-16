@@ -79,8 +79,8 @@ export function Mermaid({chart}: MermaidProps) {
         <>
             {/* Dim background */}
             <div className={`
-                 fixed inset-0 z-[999] bg-black transition-opacity opacity-0 duration-300 
-                 ${isFullscreen && 'opacity-50'} ${!dimmerActive && 'display: none'}`}
+                 fixed z-[999] bg-black transition-opacity opacity-0 duration-300 
+                 ${isFullscreen && 'inset-0 opacity-50'} ${!dimmerActive && 'display: none'}`}
             />
 
             <div

@@ -1,7 +1,8 @@
 'use client';
 
 import {CSSProperties, useEffect, useRef, useState} from 'react';
-import {PanZoom} from 'react-easy-panzoom';
+const easypanzoom = require('react-easy-panzoom');  
+const {PanZoom} = easypanzoom;
 import mermaid from 'mermaid';
 
 interface MermaidProps {

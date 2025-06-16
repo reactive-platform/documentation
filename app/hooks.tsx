@@ -20,7 +20,9 @@ export function useRequest({input, init, onStart, onFinish, onFail, dependencies
     useEffect(() => {
         async function loadAsync(state: PromiseState) {
             state.running = true;
-            onStart && onStart();
+            if (onStart) {
+                onStart();
+            }
 
             const res = await fetch(input, init);
             console.log(res);
@@ -30,9 +32,13 @@ export function useRequest({input, init, onStart, onFinish, onFail, dependencies
             }
 
             if (res.ok) {
-                onFinish && await onFinish(res);
+                if (onFinish) {
+                    await onFinish(res);
+                }
             } else {
-                onFail && onFail(res.statusText);
+                if (onFail) {
+                    onFail(res.statusText);
+                }
             }
 
             state.running = false;

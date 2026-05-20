@@ -11,6 +11,7 @@ import {remarkMermaid} from "@/app/plugins/remarkMermaid";
 export const docs = defineDocs({
     docs: {
         schema: frontmatterSchema,
+        async: true,
     },
     meta: {
         schema: metaSchema,

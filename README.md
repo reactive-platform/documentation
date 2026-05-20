@@ -1,5 +1,7 @@
 # reactiveui
 
+[![Netlify Status](https://api.netlify.com/api/v1/badges/eb29b94d-0f1b-4b2c-b406-21045b46681c/deploy-status)](https://app.netlify.com/projects/astonishing-moxie-782409/deploys)
+
 This is a Next.js application generated with
 [Create Fumadocs](https://github.com/fuma-nama/fumadocs).
 

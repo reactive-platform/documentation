@@ -1,0 +1,101 @@
+---
+title: Architecture
+description: How ReactiveUI is designed and its primitives.
+---
+
+## Basics
+
+Before we dive deeper, let's consider the following terms:
+
+### Components
+
+The most fundamental building block is a component. Components encapsulate views and logic, providing an API for state manipulation.
+In ReactiveUI components are **designed to be stupid**. What does it mean? Well, if you look at any component in the SDK,
+you'll notice that all it does is exposes non-reactive properties and callbacks. At this point you cannot attach any reactive logic
+directly, only manipulate it by manually mutating properties.
+
+### States
+
+The second important thing is a state. States bridge the reactivity gap by telling the runtime when it's time to update.
+There are mutable and immutable states, where most immutable states are query states. Query states are extensions designed
+to extend the existing logic by providing a simple, composable way.
+They are somewhat similar to LINQ, allowing to select, branch and concatenate states they're applied to.
+
+### How do they interact
+
+Yeah, that's all if we're talking about the actual fundamentals, not taking into account layout and another derived topics.
+So, how do we use these blocks to build an app? Remember I've mentioned that components are stupid? That's the crucial part.
+
+One of the reasons ReactiveUI exists are performance and verbosity: if you'd have to define a state for each property and bind events manually,
+you would abandon the project immediately. That's why ReactiveUI is designed around **Roslyn Generators**.
+They allow generating code during the compilation, providing a way to bridge the gap programmatically.
+
+The central "bridge" is a **StateGenerator**, it takes components and states and binds them together. Let's look at the following example:
+
+```csharp
+class Foo : ReactiveComponent {
+    protected override GameObject Construct() {
+        var value = Remember("Hello world!");
+
+        return new Label {
+            sText = value
+        }
+        .Use();
+    }
+}
+```
+
+You might notice that there's no such property as `sText`, then what's happening here? State generator analyzes assignment patterns
+in the initializer and tries to match a property according to the rules. If there's a property, it generates an extension that wires the property
+with a state.
+
+So, in this example, the pattern is `s{}` (this is the default value if none is specified), hence the generator
+will try to extract the `{}` part from all assignments. As we define `sText` and there's a `Text` property, the generator
+produces an extension that accepts any types implementing `IState<string>`, allowing you to bind a value to the property.
+The generated property will look like:
+
+```csharp
+// This is a very simplified version, the actual code will be different
+extenion(Foo comp) {
+    public IState<string> sText {
+        set {
+            value.ValueChangedEvent += x => comp.Text = x;
+        }
+    }
+}
+```
+
+The generator also allows specifying custom patterns or enabling/disabling for custom methods:
+```csharp
+class Foo : ReactiveComponent {
+    [StateGen(Patterns = ["s{}", "in{}"])]
+    protected override GameObject Construct() {
+        var value = Remember("Hello world!");
+        var color = Remember(Color.white);
+
+        return new Label {
+            sText = value,
+            inColor = color // This will also work because be have a custom pattern
+        }
+        .Use();
+    }
+
+    // You can even disable the generator entirely
+    [StateGen(Enabled = false)]
+    protected override GameObject Construct() {
+        return new Label().Use();
+    }
+
+    // This will also work
+    [StateGen]
+    private ReactiveComponent CreateRow() {
+        var size = Remember(Vector3.one);
+
+        return new ReactiveComponent {
+            ContentTransform = {
+                slocalScale = size
+            }
+        };
+    }
+}
+```

@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk.WebAssembly">
+    <Import Project="..\App.props" />
+    <ItemGroup>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+        <ProjectReference Include="$(ReactiveSrc)Reactive.Compiler\Reactive.Compiler.csproj" />
+        <TrimmerRootAssembly Include="Reactive.Compiler" />
+    </ItemGroup>
+</Project>

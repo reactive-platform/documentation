@@ -1,0 +1,63 @@
+.playground-editor .cm-editor {
+    background: var(--color-fd-background);
+    color: var(--color-fd-foreground);
+}
+
+.playground-editor .cm-editor.cm-focused {
+    outline: none;
+}
+
+.playground-editor .cm-gutters {
+    background: var(--color-fd-card);
+    color: var(--color-fd-muted-foreground);
+    border-right: 1px solid var(--color-fd-border);
+}
+
+.playground-editor .cm-activeLine,
+.playground-editor .cm-activeLineGutter {
+    background: color-mix(in srgb, var(--color-fd-foreground) 5%, transparent);
+}
+
+.playground-editor .cm-cursor {
+    border-left-color: var(--color-fd-foreground);
+}
+
+.playground-editor .cm-tooltip {
+    background: var(--color-fd-popover);
+    color: var(--color-fd-popover-foreground);
+    border: 1px solid var(--color-fd-border);
+}
+
+.playground-editor .cm-tooltip-autocomplete ul li[aria-selected] {
+    background: var(--color-fd-primary);
+    color: var(--color-fd-primary-foreground);
+}
+
+.playground-editor .cm-panels {
+    background: var(--color-fd-card);
+    color: var(--color-fd-foreground);
+    border-color: var(--color-fd-border);
+}
+
+.playground-editor .cm-textfield,
+.playground-editor .cm-button {
+    background: var(--color-fd-background);
+    color: var(--color-fd-foreground);
+    border: 1px solid var(--color-fd-border);
+}
+
+.playground-editor .tok-keyword { color: #a626a4; }
+.playground-editor .tok-string { color: #2f7d32; }
+.playground-editor .tok-comment { color: #6b7280; font-style: italic; }
+.playground-editor .tok-number,
+.playground-editor .tok-atom { color: #a35c00; }
+.playground-editor .tok-typeName { color: #8a6100; }
+.playground-editor .tok-meta { color: #2f5fd0; }
+
+.dark .playground-editor .tok-keyword { color: #c678dd; }
+.dark .playground-editor .tok-string { color: #98c379; }
+.dark .playground-editor .tok-comment { color: #7f848e; }
+.dark .playground-editor .tok-number,
+.dark .playground-editor .tok-atom { color: #d19a66; }
+.dark .playground-editor .tok-typeName { color: #e5c07b; }
+.dark .playground-editor .tok-meta { color: #61afef; }

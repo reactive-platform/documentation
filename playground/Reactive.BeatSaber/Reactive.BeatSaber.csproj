@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <ItemGroup>
+        <Compile Include="$(ReactiveSrc)Reactive.BeatSaber\**\*.cs"
+                 Exclude="$(ReactiveSrc)Reactive.BeatSaber\Plugin.cs;$(ReactiveSrc)Reactive.BeatSaber\Patches\**;$(ReactiveSrc)Reactive.BeatSaber\BeatSaberUtils.cs;$(ReactiveSrc)Reactive.BeatSaber\Components\ScrollArea\VRScrollAdapter.cs;$(ReactiveSrc)Reactive.BeatSaber\Resources\Game\GameResources.cs;$(ReactiveSrc)Reactive.BeatSaber\Resources\SDK\BeatSaberResources.cs"
+                 LinkBase="BeatSaber" />
+        <EmbeddedResource Include="..\deps\beat-saber-sdk-bundle\Assets\Resources\Sprites\*.png" LogicalName="%(Filename)%(Extension)" />
+        <ProjectReference Include="..\UnityEngine\UnityEngine.csproj" />
+        <ProjectReference Include="..\Reactive\Reactive.csproj" />
+        <ProjectReference Include="..\Reactive.Components\Reactive.Components.csproj" />
+        <ProjectReference Include="$(ReactiveSrc)Reactive.Compiler\Reactive.Compiler.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
+    </ItemGroup>
+</Project>

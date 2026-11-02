@@ -1,0 +1,25 @@
+<Project>
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <RuntimeIdentifier>browser-wasm</RuntimeIdentifier>
+        <PublishTrimmed>true</PublishTrimmed>
+        <TrimMode>partial</TrimMode>
+        <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
+        <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <InvariantTimezone>true</InvariantTimezone>
+        <DebuggerSupport>false</DebuggerSupport>
+        <EventSourceSupport>false</EventSourceSupport>
+        <EnableDefaultCompressionFormats>false</EnableDefaultCompressionFormats>
+        <BuildCompressionFormats>gzip</BuildCompressionFormats>
+        <PublishCompressionFormats>gzip</PublishCompressionFormats>
+    </PropertyGroup>
+    <ItemGroup>
+        <TrimmerRootAssembly Include="System.Private.CoreLib;System.Runtime;System.Collections;System.Linq;System.Console;System.Memory;System.Threading;System.Threading.Tasks;System.Runtime.InteropServices;System.Text.RegularExpressions;System.ObjectModel;System.ComponentModel;System.Net.Http;System.Text.Json;netstandard" />
+        <TrimmerRootAssembly Include="UnityEngine;Reactive;Reactive.Components;Reactive.BeatSaber" />
+        <ProjectReference Include="..\UnityEngine\UnityEngine.csproj" />
+        <ProjectReference Include="..\Reactive\Reactive.csproj" />
+        <ProjectReference Include="..\Reactive.Components\Reactive.Components.csproj" />
+        <ProjectReference Include="..\Reactive.BeatSaber\Reactive.BeatSaber.csproj" />
+    </ItemGroup>
+</Project>

@@ -2,7 +2,7 @@
 
 import { autocompletion, type CompletionContext, type CompletionResult } from '@codemirror/autocomplete';
 import { StreamLanguage, syntaxHighlighting } from '@codemirror/language';
-import { csharp } from '@codemirror/legacy-modes/mode/clike';
+import { cpp, csharp } from '@codemirror/legacy-modes/mode/clike';
 import { type Diagnostic, setDiagnostics } from '@codemirror/lint';
 import { Compartment, EditorSelection, EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
@@ -10,13 +10,36 @@ import { classHighlighter } from '@lezer/highlight';
 import { basicSetup } from 'codemirror';
 import { useEffect, useRef, useState } from 'react';
 import './playground.css';
+import { questSamples } from './quest-samples';
 import { samples } from './samples';
 
 const RUNTIME_URL = '/reactive-playground';
-const COMPILE_DELAY_MS = 350;
+
+const PLATFORMS = {
+    pc: {
+        label: 'PC (C#)',
+        worker: `${RUNTIME_URL}/compiler/worker.js`,
+        preview: `${RUNTIME_URL}/preview/index.html`,
+        syntax: csharp,
+        samples,
+        compileDelay: 350,
+        completeAfter: /[\w.]/,
+    },
+    quest: {
+        label: 'Quest (C++)',
+        worker: `${RUNTIME_URL}/quest/worker.js`,
+        preview: `${RUNTIME_URL}/quest/index.html`,
+        syntax: cpp,
+        samples: questSamples,
+        compileDelay: 800,
+        completeAfter: /[\w.]|->|::/,
+    },
+};
+
+type PlatformName = keyof typeof PLATFORMS;
 
 interface CompilerDiagnostic {
-    severity: 'error' | 'warning';
+    severity: 'error' | 'warning' | 'info';
     id: string;
     message: string;
     from: number;
@@ -60,13 +83,19 @@ export function Playground() {
     const editorHost = useRef<HTMLDivElement>(null);
     const previewHost = useRef<HTMLDivElement>(null);
     const viewRef = useRef<EditorView | null>(null);
+    const drafts = useRef<Partial<Record<PlatformName, string>>>({});
+    const [platformName, setPlatformName] = useState<PlatformName>('pc');
+    const platform = PLATFORMS[platformName];
     const [status, setStatus] = useState<Status>({ kind: 'busy', text: 'Loading the compiler...' });
     const [lines, setLines] = useState<ConsoleLine[]>([]);
 
     useEffect(() => {
-        const worker = new Worker(`${RUNTIME_URL}/compiler/worker.js`, { type: 'module' });
+        setStatus({ kind: 'busy', text: 'Loading the compiler...' });
+        setLines([]);
+
+        const worker = new Worker(platform.worker, { type: 'module' });
         const frame = document.createElement('iframe');
-        frame.src = `${RUNTIME_URL}/preview/index.html`;
+        frame.src = platform.preview;
         frame.title = 'Preview';
         frame.className = 'h-full w-full border-0';
         previewHost.current!.append(frame);
@@ -85,10 +114,10 @@ export function Playground() {
         const view = new EditorView({
             parent: editorHost.current!,
             state: EditorState.create({
-                doc: samples[0].code,
+                doc: drafts.current[platformName] ?? platform.samples[0].code,
                 extensions: [
                     basicSetup,
-                    StreamLanguage.define(csharp),
+                    StreamLanguage.define(platform.syntax),
                     syntaxHighlighting(classHighlighter),
                     autocompletion({ override: [complete] }),
                     EditorView.lineWrapping,
@@ -108,7 +137,7 @@ export function Playground() {
         themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
         function complete(context: CompletionContext) {
-            if (!context.explicit && !context.matchBefore(/[\w.]/)) return null;
+            if (!context.explicit && !context.matchBefore(platform.completeAfter)) return null;
 
             pendingCompletion?.resolve(null);
             const id = nextId++;
@@ -120,7 +149,7 @@ export function Playground() {
 
         function scheduleCompile() {
             clearTimeout(compileTimer);
-            compileTimer = setTimeout(compile, COMPILE_DELAY_MS);
+            compileTimer = setTimeout(compile, platform.compileDelay);
         }
 
         function compile() {
@@ -141,11 +170,11 @@ export function Playground() {
         function showDiagnostics(diagnostics: CompilerDiagnostic[]) {
             const length = view.state.doc.length;
             const marks: Diagnostic[] = diagnostics
-                .filter((x) => x.from >= 0 && x.from <= length)
+                .filter((x) => x.severity !== 'info' && x.from >= 0 && x.from <= length)
                 .map((x) => ({
                     from: x.from,
                     to: Math.min(Math.max(x.to, x.from + 1), length),
-                    severity: x.severity,
+                    severity: x.severity as Diagnostic['severity'],
                     message: `${x.id}: ${x.message}`,
                 }));
             view.dispatch(setDiagnostics(view.state, marks));
@@ -163,6 +192,9 @@ export function Playground() {
             switch (data.type) {
                 case 'ready':
                     compile();
+                    break;
+                case 'progress':
+                    setStatus({ kind: 'busy', text: data.text });
                     break;
                 case 'failed':
                     setStatus({ kind: 'error', text: `The compiler failed to start: ${data.message}` });
@@ -234,17 +266,18 @@ export function Playground() {
             clearTimeout(compileTimer);
             window.removeEventListener('message', onPreviewMessage);
             themeObserver.disconnect();
+            drafts.current[platformName] = view.state.doc.toString();
             view.destroy();
             viewRef.current = null;
             frame.remove();
             worker.terminate();
         };
-    }, []);
+    }, [platformName, platform]);
 
     function selectSample(name: string) {
         const view = viewRef.current!;
         view.dispatch({
-            changes: { from: 0, to: view.state.doc.length, insert: samples.find((x) => x.name === name)!.code },
+            changes: { from: 0, to: view.state.doc.length, insert: platform.samples.find((x) => x.name === name)!.code },
             selection: EditorSelection.single(0),
         });
     }
@@ -260,14 +293,28 @@ export function Playground() {
 
     return (
         <div className="flex h-[calc(100dvh-3.5rem)] flex-col gap-2 p-2">
-            <div className="flex items-center gap-3 text-sm">
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+                <div role="tablist" aria-label="Platform" className="flex rounded-md border border-fd-border p-0.5">
+                    {(Object.keys(PLATFORMS) as PlatformName[]).map((name) => (
+                        <button
+                            key={name}
+                            role="tab"
+                            aria-selected={name === platformName}
+                            className={`rounded px-2.5 py-0.5 ${name === platformName ? 'bg-fd-primary text-fd-primary-foreground' : 'text-fd-muted-foreground hover:text-fd-foreground'}`}
+                            onClick={() => setPlatformName(name)}
+                        >
+                            {PLATFORMS[name].label}
+                        </button>
+                    ))}
+                </div>
                 <label className="flex items-center gap-2 text-fd-muted-foreground">
                     Example
                     <select
+                        key={platformName}
                         className="rounded-md border border-fd-border bg-fd-background px-2 py-1 text-fd-foreground"
                         onChange={(e) => selectSample(e.target.value)}
                     >
-                        {samples.map((x) => (
+                        {platform.samples.map((x) => (
                             <option key={x.name} value={x.name}>
                                 {x.name}
                             </option>

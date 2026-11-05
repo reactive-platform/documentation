@@ -1,5 +1,6 @@
 param(
     [string] $ReactiveRepo,
+    [string] $QuestRepo,
     [string] $YogaBinding,
     [switch] $RebuildYoga
 )
@@ -118,6 +119,10 @@ foreach ($app in $apps) {
 Get-ChildItem $output -Recurse -File |
     Where-Object { $_.Extension -eq '.wasm' -or ($_.Extension -eq '.gz' -and $_.Name -notlike '*.wasm.gz') } |
     Remove-Item -Force
+
+$questArguments = @((Join-Path $here 'Quest\build.mjs'), '--bundle', $bundle)
+if ($QuestRepo) { $questArguments += @('--quest', $QuestRepo) }
+Invoke-Checked node $questArguments
 
 $size = (Get-ChildItem $output -Recurse -File | Measure-Object Length -Sum).Sum
 Write-Host "Built $output ($([math]::Round($size / 1MB, 1)) MB)"

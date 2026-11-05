@@ -817,6 +817,17 @@ namespace UnityEngine.Networking {
 
         internal Texture2D? texture;
 
+        public enum Result {
+            InProgress,
+            Success,
+            ConnectionError,
+            ProtocolError,
+            DataProcessingError
+        }
+
+        public Result result { get; private set; }
+        public string? error { get; private set; }
+
         internal UnityWebRequest(string url) => _url = url;
 
         public AsyncOperation SendWebRequest() {
@@ -831,12 +842,24 @@ namespace UnityEngine.Networking {
 
             try {
                 var bytes = await client.GetByteArrayAsync(_url);
-                if (!texture.LoadImage(bytes)) Debug.LogError($"Failed to load {_url}: unsupported image format");
+                if (texture.LoadImage(bytes)) {
+                    result = Result.Success;
+                } else {
+                    Fail(Result.DataProcessingError, "unsupported image format");
+                }
+            } catch (HttpRequestException e) {
+                Fail(e.StatusCode != null ? Result.ProtocolError : Result.ConnectionError, e.Message);
             } catch (Exception e) {
-                Debug.LogError($"Failed to load {_url}: {e.Message}");
+                Fail(Result.ConnectionError, e.Message);
             }
 
             operation.Complete();
+        }
+
+        private void Fail(Result failure, string message) {
+            result = failure;
+            error = message;
+            Debug.LogError($"Failed to load {_url}: {message}");
         }
 
         public void Dispose() { }

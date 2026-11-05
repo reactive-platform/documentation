@@ -395,7 +395,7 @@ function applyText(el, n) {
     applyFont(box, n.fs, n.st);
     box.style.color = cssColor(n.c);
     box.style.opacity = n.o;
-    box.style.overflow = clipped ? 'hidden' : 'visible';
+    box.style.overflow = n.of > 1 ? 'hidden' : 'visible';
     box.style.justifyContent = horizontal === 1 ? 'flex-start' : horizontal === 4 ? 'flex-end' : 'center';
     box.style.alignItems = vertical === 0x100 ? 'flex-start' : vertical === 0x400 ? 'flex-end' : 'center';
     box.style.textAlign = horizontal === 1 ? 'left' : horizontal === 4 ? 'right' : 'center';

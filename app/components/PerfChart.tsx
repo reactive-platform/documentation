@@ -9,6 +9,7 @@ interface PerfRow {
 interface PerfGroup {
     name?: string;
     rows: PerfRow[];
+    notes?: string[];
 }
 
 interface PerfChartProps {
@@ -97,6 +98,10 @@ export default function PerfChart({from, to, groups}: PerfChartProps) {
                             </div>
                         );
                     })}
+
+                    {group.notes?.map(note => (
+                        <p key={note} className="mt-1 text-xs text-fd-muted-foreground">{note}</p>
+                    ))}
                 </div>
             ))}
         </div>

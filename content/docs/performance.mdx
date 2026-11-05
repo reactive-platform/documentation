@@ -9,7 +9,7 @@ We measured BeatLeader's own UI on Reactive V1 and V2, then ran the same stress 
 - **V2 vs V1:** V2 mounts about 4× faster. Its layout lead comes from a faster Yoga build, not from Reactive. State is far faster in the worst cases, while single writes are slower.
 - **Reactive vs BSML:** Reactive is much faster when part of a big UI changes, and usually mounts faster. BSML is faster when many labels change text, and when moving things without layout.
 
-Each bar shows how many times better one side is, on a log scale. No bar means the difference is within noise. Don't compare PC numbers with Quest numbers.
+Each bar shows how many times better one side is, on a log scale. No bar means the difference is within noise. A * marks a row where the two sides don't do the same work or weren't measured the same way, with a note under its group. Don't compare PC numbers with Quest numbers.
 
 ## BeatLeader
 
@@ -41,15 +41,20 @@ V1 never frees the Yoga nodes of destroyed Images, Labels and list rows, or anyt
             {"label": "500 percent-sized items, root resizes", "id": "layout-percent", "values": "18.4 → 11.5 ms", "ratio": 1.59, "difference": "1.6× faster"},
             {"label": "128 nested containers, innermost resizes", "id": "layout-deep", "values": "19.7 → 2.64 ms", "ratio": 7.48, "difference": "7.5× faster"},
             {"label": "Tree of 1365 growing nodes", "id": "layout-tree", "values": "44.8 → 25.0 ms", "ratio": 1.79, "difference": "1.8× faster"},
-            {"label": "300 labels, all change text", "id": "layout-text-all", "values": "42.2 → 35.1 ms", "ratio": 1.2, "difference": "1.2× faster"},
+            {"label": "300 labels, all change text*", "id": "layout-text-all", "values": "42.2 → 35.1 ms", "ratio": 1.2, "difference": "1.2× faster"},
+        ], "notes": [
+            "* V1 sets each label's text directly. V2 writes 300 bound states, the way BeatLeader's V2 UI does.",
         ]},
         {"name": "State", "rows": [
             {"label": "One write, one callback", "id": "state-single", "values": "2.0 → 7.4 µs", "ratio": -3.61, "difference": "3.6× slower"},
             {"label": "One write, 1000 callbacks", "id": "state-fanout", "values": "74.1 → 38.6 µs", "ratio": 1.92, "difference": "1.9× faster"},
             {"label": "Callbacks writing more states, 6 levels", "id": "state-cascade", "values": "304 → 667 µs", "ratio": -2.2, "difference": "2.2× slower"},
-            {"label": "1000 writes per frame, 100 callbacks", "id": "state-burst", "values": "730 → 29.3 µs", "ratio": 24.91, "difference": "25× faster"},
-            {"label": "1000 subscribes and unsubscribes", "id": "state-subscribe", "values": "5.78 ms → 82.2 µs", "ratio": 70.35, "difference": "70× faster"},
-            {"label": "18 stacked diamonds", "id": "state-diamond-deep", "values": "20.0 ms → 26.7 µs", "ratio": 750.02, "difference": "750× faster"},
+            {"label": "1000 writes per frame, 100 callbacks*", "id": "state-burst", "values": "730 → 29.3 µs", "ratio": 24.91, "difference": "25× faster"},
+            {"label": "1000 subscribes and unsubscribes**", "id": "state-subscribe", "values": "5.78 ms → 82.2 µs", "ratio": 70.35, "difference": "70× faster"},
+            {"label": "18 stacked diamonds*", "id": "state-diamond-deep", "values": "20.0 ms → 26.7 µs", "ratio": 750.02, "difference": "750× faster"},
+        ], "notes": [
+            "* Not the same work: V1 calls back on every write, 100000 times per frame in the burst and 262144 times at the end of the diamonds. V2 runs each callback once per flush, with the latest value.",
+            "** V1 has no subscription handle, so this uses its C# event, which copies the whole list of callbacks on every add and remove.",
         ]},
         {"name": "Animation", "rows": [
             {"label": "2000 Images, color", "id": "anim-color-large", "values": "33.9 → 31.9 ms", "ratio": 1.06, "difference": "1.1× faster"},
@@ -57,19 +62,25 @@ V1 never frees the Yoga nodes of destroyed Images, Labels and list rows, or anyt
         ]},
         {"name": "Lists", "rows": [
             {"label": "Table of 100000, scrolling", "id": "list-table-scroll", "values": "8.34 → 8.07 ms", "ratio": 0, "difference": "same"},
-            {"label": "Flat list of 500 rows, all rebind", "id": "list-flat-shuffle", "values": "275 → 107 ms", "ratio": 2.58, "difference": "2.6× faster"},
-            {"label": "Flat list growing by 10 rows per frame", "id": "list-flat-grow", "values": "91.7 → 14.4 ms", "ratio": 6.36, "difference": "6.4× faster"},
+            {"label": "Flat list of 500 rows, all rebind*", "id": "list-flat-shuffle", "values": "275 → 107 ms", "ratio": 2.58, "difference": "2.6× faster"},
+            {"label": "Flat list growing by 10 rows per frame*", "id": "list-flat-grow", "values": "91.7 → 14.4 ms", "ratio": 6.36, "difference": "6.4× faster"},
+        ], "notes": [
+            "* V1 ran each of these in a fresh game session, because its leak slows down everything after it, while V2 ran the full suite. So this is V1's best case.",
         ]},
         {"name": "Mounting", "rows": [
-            {"label": "1000 Images", "id": "life-image", "values": "320 → 71.8 ms", "ratio": 4.46, "difference": "4.5× faster"},
-            {"label": "1000 Labels", "id": "life-label", "values": "865 → 224 ms", "ratio": 3.87, "difference": "3.9× faster"},
-            {"label": "500 list rows", "id": "life-row", "values": "1104 → 291 ms", "ratio": 3.8, "difference": "3.8× faster"},
-            {"label": "Creating and destroying 50 rows per frame", "id": "life-churn", "values": "124 → 31.0 ms", "ratio": 3.98, "difference": "4.0× faster"},
+            {"label": "1000 Images*", "id": "life-image", "values": "320 → 71.8 ms", "ratio": 4.46, "difference": "4.5× faster"},
+            {"label": "1000 Labels*", "id": "life-label", "values": "865 → 224 ms", "ratio": 3.87, "difference": "3.9× faster"},
+            {"label": "500 list rows*", "id": "life-row", "values": "1104 → 291 ms", "ratio": 3.8, "difference": "3.8× faster"},
+            {"label": "Creating and destroying 50 rows per frame*", "id": "life-churn", "values": "124 → 31.0 ms", "ratio": 3.98, "difference": "4.0× faster"},
+        ], "notes": [
+            "* Also from a fresh V1 session each.",
         ]},
         {"name": "Memory", "rows": [
             {"label": "100000 states", "id": "ram-state", "values": "18.2 → 24.2 MB", "ratio": -1.33, "difference": "1.3× more"},
             {"label": "5000 animated boxes", "id": "ram-animated", "values": "17.0 → 6.79 MB", "ratio": 2.51, "difference": "2.5× less"},
-            {"label": "2000 list rows", "id": "ram-rows", "values": "82.5 → 73.4 MB", "ratio": 1.12, "difference": "1.1× less"},
+            {"label": "2000 list rows*", "id": "ram-rows", "values": "82.5 → 73.4 MB", "ratio": 1.12, "difference": "1.1× less"},
+        ], "notes": [
+            "* Also from a fresh V1 session.",
         ]},
     ]}
 />
@@ -91,9 +102,11 @@ V1 ships with an unoptimized `yoga.dll`, and V2 was measured on a Release build.
             {"label": "Tree of 1365 growing nodes", "id": "layout-tree", "values": "24.9 → 26.8 ms", "ratio": 0, "difference": "same"},
         ]},
         {"name": "Mounting", "rows": [
-            {"label": "1000 Images", "id": "life-image", "values": "312 → 71.8 ms", "ratio": 4.35, "difference": "4.3× faster"},
-            {"label": "1000 Labels", "id": "life-label", "values": "764 → 224 ms", "ratio": 3.41, "difference": "3.4× faster"},
-            {"label": "500 list rows", "id": "life-row", "values": "1204 → 291 ms", "ratio": 4.14, "difference": "4.1× faster"},
+            {"label": "1000 Images*", "id": "life-image", "values": "312 → 71.8 ms", "ratio": 4.35, "difference": "4.3× faster"},
+            {"label": "1000 Labels*", "id": "life-label", "values": "764 → 224 ms", "ratio": 3.41, "difference": "3.4× faster"},
+            {"label": "500 list rows*", "id": "life-row", "values": "1204 → 291 ms", "ratio": 4.14, "difference": "4.1× faster"},
+        ], "notes": [
+            "* V1 ran each of these in a fresh game session, V2 in the full suite.",
         ]},
     ]}
 />
@@ -102,7 +115,7 @@ V1 catches up on layout and is up to 1.6× faster in some cases, but its mounts 
 
 ## Reactive vs BSML
 
-BSML can't do exactly the same work in every benchmark, [see the caveats](#how-it-was-measured).
+BSML can't always do the same work, see [where the work differs](#where-the-work-differs).
 
 ### PC
 
@@ -111,37 +124,50 @@ BSML can't do exactly the same work in every benchmark, [see the caveats](#how-i
     to="V2"
     groups={[
         {"name": "Layout", "rows": [
-            {"label": "1000 flex items, one resizes", "id": "layout-leaf", "values": "12.5 → 3.67 ms", "ratio": 3.4, "difference": "3.4× faster"},
+            {"label": "1000 items, one resizes*", "id": "layout-leaf", "values": "12.5 → 3.67 ms", "ratio": 3.4, "difference": "3.4× faster"},
             {"label": "Tree of 1365 nodes, fixed-size leaves", "id": "layout-tree-fixed", "values": "34.9 → 5.81 ms", "ratio": 6.0, "difference": "6.0× faster"},
             {"label": "Tree of 1365 growing nodes", "id": "layout-tree", "values": "35.7 → 25.0 ms", "ratio": 1.43, "difference": "1.4× faster"},
-            {"label": "300 labels, all change text", "id": "layout-text-all", "values": "20.1 → 35.1 ms", "ratio": -1.75, "difference": "1.8× slower"},
+            {"label": "300 labels, all change text**", "id": "layout-text-all", "values": "20.1 → 35.1 ms", "ratio": -1.75, "difference": "1.8× slower"},
+        ], "notes": [
+            "* BSML uses 40 rows of 25, because its layout groups can't wrap items of different sizes. Reactive wraps all 1000 in one container.",
+            "** BSML uses 30 rows of 10 and sets each text directly. Reactive wraps all 300 in one container and writes 300 bound states.",
         ]},
         {"name": "State", "rows": [
-            {"label": "500 bound labels update", "id": "state-labels", "values": "19.9 → 54.9 ms", "ratio": -2.76, "difference": "2.8× slower"},
+            {"label": "500 labels showing one value*", "id": "state-labels", "values": "19.9 → 54.9 ms", "ratio": -2.76, "difference": "2.8× slower"},
+        ], "notes": [
+            "* BSML's labels sit in grid cells of a fixed size, so their text isn't measured for layout, while Reactive's are sized by their text.",
         ]},
         {"name": "Animation", "rows": [
-            {"label": "2000 Images, color", "id": "anim-color-large", "values": "30.5 → 31.9 ms", "ratio": 0, "difference": "same"},
-            {"label": "500 items, position only", "id": "anim-position", "values": "≈0 → 3.15 ms", "ratio": -1.61, "difference": ">1.6× slower"},
+            {"label": "2000 Images, color*", "id": "anim-color-large", "values": "30.5 → 31.9 ms", "ratio": 0, "difference": "same"},
+            {"label": "500 items, position only**", "id": "anim-position", "values": "≈0 → 3.15 ms", "ratio": -1.61, "difference": ">1.6× slower"},
+        ], "notes": [
+            "* BSML has no animations, so a hand-written loop works out one value per frame and sets it on every item. Reactive runs a separate animation per item.",
+            "** The same loop, and BSML's items ignore layout, so moving them only writes their transforms. Reactive moves absolute flex items, so its layout runs every frame.",
         ]},
         {"name": "Lists", "rows": [
-            {"label": "Table of 100000, jumping far", "id": "list-table-jump", "values": "126 → 7.78 ms", "ratio": 16.21, "difference": "16× faster"},
+            {"label": "Table of 100000, jumping far*", "id": "list-table-jump", "values": "126 → 7.78 ms", "ratio": 16.21, "difference": "16× faster"},
             {"label": "Flat list of 2000 rows, idle", "id": "list-flat-idle", "values": "15.2 → 21.3 ms", "ratio": -1.4, "difference": "1.4× slower"},
-            {"label": "Flat list of 500 rows, all rebind", "id": "list-flat-shuffle", "values": "89.8 → 107 ms", "ratio": -1.19, "difference": "1.2× slower"},
+            {"label": "Flat list of 500 rows, all rebind**", "id": "list-flat-shuffle", "values": "89.8 → 107 ms", "ratio": -1.19, "difference": "1.2× slower"},
+        ], "notes": [
+            "* BSML's custom-list creates and parses a new cell whenever a row comes into view, instead of reusing one. That's BSML's own behavior.",
+            "** BSML has no list to give new items to, so each row's bound object is updated in place. Reactive's list gets a new array of items.",
         ]},
         {"name": "Mounting", "rows": [
-            {"label": "1000 Images", "id": "life-image", "values": "556 → 71.8 ms", "ratio": 7.75, "difference": "7.8× faster"},
-            {"label": "1000 Labels", "id": "life-label", "values": "623 → 224 ms", "ratio": 2.79, "difference": "2.8× faster"},
-            {"label": "500 list rows", "id": "life-row", "values": "1444 → 291 ms", "ratio": 4.97, "difference": "5.0× faster"},
-            {"label": "Creating and destroying 50 rows per frame", "id": "life-churn", "values": "121 → 31.0 ms", "ratio": 3.89, "difference": "3.9× faster"},
+            {"label": "1000 Images*", "id": "life-image", "values": "556 → 71.8 ms", "ratio": 7.75, "difference": "7.8× faster"},
+            {"label": "1000 Labels*", "id": "life-label", "values": "623 → 224 ms", "ratio": 2.79, "difference": "2.8× faster"},
+            {"label": "500 list rows*", "id": "life-row", "values": "1444 → 291 ms", "ratio": 4.97, "difference": "5.0× faster"},
+            {"label": "Creating and destroying 50 rows per frame*", "id": "life-churn", "values": "121 → 31.0 ms", "ratio": 3.89, "difference": "3.9× faster"},
+        ], "notes": [
+            "* BSML parses its markup on every mount, where Reactive builds from code. BSML also places the first three in a grid of fixed cells rather than wrapping them, so its 1000 Labels aren't measured for layout.",
         ]},
         {"name": "Memory", "rows": [
-            {"label": "5000 animated boxes", "id": "ram-animated", "values": "21.0 → 6.79 MB", "ratio": 3.1, "difference": "3.1× less"},
+            {"label": "5000 animated boxes*", "id": "ram-animated", "values": "21.0 → 6.79 MB", "ratio": 3.1, "difference": "3.1× less"},
             {"label": "2000 list rows", "id": "ram-rows", "values": "120 → 73.4 MB", "ratio": 1.63, "difference": "1.6× less"},
+        ], "notes": [
+            "* BSML has no animations, so its 5000 Images hold no animation state, while Reactive's hold one each.",
         ]},
     ]}
 />
-
-BSML on PC recreates its table cells when jumping, which is the biggest gap here.
 
 ### Quest 3
 
@@ -150,31 +176,45 @@ BSML on PC recreates its table cells when jumping, which is the biggest gap here
     to="Reactive"
     groups={[
         {"name": "Layout", "rows": [
-            {"label": "1000 flex items, one resizes", "id": "layout-leaf", "values": "29.5 → 0.77 ms", "ratio": 38.1, "difference": "38× faster"},
+            {"label": "1000 items, one resizes*", "id": "layout-leaf", "values": "29.5 → 0.77 ms", "ratio": 38.1, "difference": "38× faster"},
             {"label": "Tree of 1365 nodes, fixed-size leaves", "id": "layout-tree-fixed", "values": "73.0 → 3.63 ms", "ratio": 20.08, "difference": "20× faster"},
             {"label": "Tree of 1365 growing nodes", "id": "layout-tree", "values": "74.4 → 38.0 ms", "ratio": 1.96, "difference": "2.0× faster"},
-            {"label": "300 labels, all change text", "id": "layout-text-all", "values": "24.6 → 27.9 ms", "ratio": -1.13, "difference": "1.1× slower"},
+            {"label": "300 labels, all change text**", "id": "layout-text-all", "values": "24.6 → 27.9 ms", "ratio": -1.13, "difference": "1.1× slower"},
+        ], "notes": [
+            "* BSML uses 40 rows of 25, because its layout groups can't wrap items of different sizes. Reactive wraps all 1000 in one container.",
+            "** BSML uses 30 rows of 10 and sets each text directly. Reactive wraps all 300 in one container and writes 300 bound states.",
         ]},
         {"name": "State", "rows": [
-            {"label": "500 bound labels update", "id": "state-labels", "values": "20.7 → 44.7 ms", "ratio": -2.16, "difference": "2.2× slower"},
+            {"label": "500 labels showing one value*", "id": "state-labels", "values": "20.7 → 44.7 ms", "ratio": -2.16, "difference": "2.2× slower"},
+        ], "notes": [
+            "* Quest BSML has no change notifications, so the loop sets all 500 labels by hand. Its labels also sit in grid cells of a fixed size, so their text isn't measured for layout, while Reactive's are sized by their text.",
         ]},
         {"name": "Animation", "rows": [
-            {"label": "2000 Images, color", "id": "anim-color-large", "values": "52.6 → 55.3 ms", "ratio": -1.05, "difference": "1.1× slower"},
-            {"label": "500 items, position only", "id": "anim-position", "values": "0.09 → 1.50 ms", "ratio": -16.76, "difference": "17× slower"},
+            {"label": "2000 Images, color*", "id": "anim-color-large", "values": "52.6 → 55.3 ms", "ratio": -1.05, "difference": "1.1× slower"},
+            {"label": "500 items, position only**", "id": "anim-position", "values": "0.09 → 1.50 ms", "ratio": -16.76, "difference": "17× slower"},
+        ], "notes": [
+            "* BSML has no animations, so a hand-written loop works out one value per frame and sets it on every item. Reactive runs a separate animation per item.",
+            "** The same loop, and BSML's items ignore layout, so moving them only writes their transforms. Reactive moves absolute flex items, so its layout runs every frame.",
         ]},
         {"name": "Lists", "rows": [
             {"label": "Flat list of 2000 rows, idle", "id": "list-flat-idle", "values": "1.35 → 5.24 ms", "ratio": -3.89, "difference": "3.9× slower"},
-            {"label": "Flat list of 500 rows, all rebind", "id": "list-flat-shuffle", "values": "126 → 87.7 ms", "ratio": 1.43, "difference": "1.4× faster"},
+            {"label": "Flat list of 500 rows, all rebind*", "id": "list-flat-shuffle", "values": "126 → 87.7 ms", "ratio": 1.43, "difference": "1.4× faster"},
+        ], "notes": [
+            "* Quest BSML has no change notifications, so the loop sets all 1000 labels by hand. Reactive's list gets a new array of items.",
         ]},
         {"name": "Mounting", "rows": [
-            {"label": "1000 Images", "id": "life-image", "values": "279 → 173 ms", "ratio": 1.61, "difference": "1.6× faster"},
-            {"label": "1000 Labels", "id": "life-label", "values": "716 → 808 ms", "ratio": -1.13, "difference": "1.1× slower"},
-            {"label": "500 list rows", "id": "life-row", "values": "1224 → 1033 ms", "ratio": 1.19, "difference": "1.2× faster"},
-            {"label": "Creating and destroying 50 rows per frame", "id": "life-churn", "values": "129 → 112 ms", "ratio": 1.15, "difference": "1.2× faster"},
+            {"label": "1000 Images*", "id": "life-image", "values": "279 → 173 ms", "ratio": 1.61, "difference": "1.6× faster"},
+            {"label": "1000 Labels*", "id": "life-label", "values": "716 → 808 ms", "ratio": -1.13, "difference": "1.1× slower"},
+            {"label": "500 list rows*", "id": "life-row", "values": "1224 → 1033 ms", "ratio": 1.19, "difference": "1.2× faster"},
+            {"label": "Creating and destroying 50 rows per frame*", "id": "life-churn", "values": "129 → 112 ms", "ratio": 1.15, "difference": "1.2× faster"},
+        ], "notes": [
+            "* BSML parses its markup on every mount, where Reactive builds from code. BSML also places the first three in a grid of fixed cells rather than wrapping them, so its 1000 Labels aren't measured for layout.",
         ]},
         {"name": "Memory", "rows": [
-            {"label": "5000 animated boxes", "id": "ram-animated", "values": "6.41 → 14.1 MB", "ratio": -2.21, "difference": "2.2× more"},
+            {"label": "5000 animated boxes*", "id": "ram-animated", "values": "6.41 → 14.1 MB", "ratio": -2.21, "difference": "2.2× more"},
             {"label": "2000 list rows", "id": "ram-rows", "values": "83.7 → 90.6 MB", "ratio": -1.08, "difference": "1.1× more"},
+        ], "notes": [
+            "* BSML has no animations, so its 5000 Images hold no animation state, while Reactive's hold one each.",
         ]},
     ]}
 />
@@ -194,10 +234,34 @@ UI time is main thread time per frame over idle, as a p50. State benchmarks are 
 - **Same:** the ranges over all rounds overlap, or the gap is under 5% or under the noise floor of an empty benchmark, which is 0.66 ms on V1 and V2, 1.95 ms on BSML and 0.03 ms on Quest.
 - **PC:** Beat Saber 1.44.0, Ryzen 7 5800H, RTX 3070 Laptop, in FPFC on a hidden desktop, which makes absolute numbers higher than usual. V1 is Reactive `859fe5d`, V2 is Reactive `56b3941` with a Release `yoga.dll`, BSML is 1.14.1. 3 rounds of V2 and BSML, 2 of V1. BeatLeader ran 2 rounds per version, and its main menu 5 sessions.
 - **Quest:** Beat Saber 1.40.8 on Quest 3 at 120 Hz, with no thermal throttling. `reactive-quest` `743aba6` and BSML 0.4.55, 3 rounds each.
-- **V1's leak** slows down everything after it, so V1's mounts, flat lists, `life-churn` and `ram-rows` come from one session per benchmark. The Yoga comparison is 2 rounds for layout and one session for mounts.
-- **BSML** can't wrap items of different sizes, so it uses fixed rows there. Its `state-labels` cells have a fixed size and aren't measured, its animations are hand-written loops, and it has no state system. On Quest it has no change notifications, so labels are set by hand.
 - **Same work:** V1, V2 and Quest Reactive end with matching layouts, apart from animations, tables and `state-subscribe`. BSML can't match them, so we compared screenshots of every benchmark instead.
 - **Not covered:** PC VR, other machines and GPU cost.
+
+</details>
+
+### Where the work differs
+
+Each target is written the way its library is normally used: V2 the way BeatLeader's UI is, V1 with its own API, and BSML with markup and `~value` bindings. Where that changes the work, or a target was measured differently, the chart row has a * and a note under its group.
+
+<details>
+<summary>Every difference</summary>
+
+**V1 and V2**
+
+- **Fresh sessions for V1:** V1's leak slows down everything after it, so its mounts, flat lists, `life-churn` and `ram-rows` each ran in a game session of their own, while V2 ran the full suite. That's V1's best case. V1's mounts on V2's Yoga also come from one session each, and its layout there from 2 rounds.
+- **Callbacks:** V1 calls back on every write. That's 100000 calls per frame in `state-burst` and 262144 at the end of `state-diamond-deep`, where V2 runs each callback once per flush. So these rows show V2 doing less work by design.
+- **Subscribing:** V1 has no subscription handle, so `state-subscribe` uses its C# event, which copies the whole list of callbacks on every add and remove.
+- **Text:** V1 sets label text directly, and V2 writes bound states, so V2's text benchmarks include its state work.
+
+**BSML**
+
+- **No wrapping:** UGUI's layout groups can't wrap items of different sizes, so where one item changes size, BSML uses rows of a fixed length with the same number of items. Elsewhere a `grid` of fixed cells stands in for wrapping, so BSML's labels in `life-label` and `state-labels` aren't measured for layout, while Reactive's are. This helps BSML.
+- **No animations:** a hand-written loop works out one value per frame and sets it on every item, while Reactive runs one animation per item. That's about the least work a BSML view could do, not a library feature. In `anim-position`, BSML's items also ignore layout, so only their transforms move, while Reactive's absolute flex items run layout every frame. In `ram-animated`, BSML's Images hold no animation state. All of this helps BSML.
+- **Markup:** BSML parses markup on every mount, including all 50 rows per frame in `life-churn`. That's how BSML builds UI, so it's counted.
+- **Tables on PC:** `CustomCellListTableData.CellForIdx` creates a GameObject and parses the cell again whenever a row comes into view, instead of reusing one. That's BSML's own behavior, and Quest BSML reuses its cells.
+- **No list component:** in `list-flat-shuffle`, each row's bound object is updated in place, while Reactive's list gets a new array of items.
+- **No change notifications on Quest:** `state-labels` and `list-flat-shuffle` set the labels by hand there, which skips binding entirely. This helps BSML.
+- **No state system:** `state-labels` is the only state benchmark with a BSML version, and `ram-state` is left out.
 
 </details>
 

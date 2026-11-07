@@ -16,7 +16,7 @@ namespace UnityEngine {
         public static partial void Log(int level, string message);
 
         [JSImport("measureText", "preview.js")]
-        public static partial double[] MeasureText(string text, double fontSize, int style, bool richText);
+        public static partial double[] MeasureText(string text, double fontSize, int style, bool richText, double wrapWidth);
 
         [JSImport("uploadTexture", "preview.js")]
         public static partial void UploadTexture(int id, int width, int height, byte[] data, bool encoded);
@@ -45,8 +45,8 @@ namespace UnityEngine {
 
         internal static void MarkDirty() => _dirty = true;
 
-        internal static Vector2 MeasureText(string text, float fontSize, TMPro.FontStyles style, bool richText) {
-            var size = Js.MeasureText(text, fontSize, (int)style, richText);
+        internal static Vector2 MeasureText(string text, float fontSize, TMPro.FontStyles style, bool richText, float wrapWidth = 0f) {
+            var size = Js.MeasureText(text, fontSize, (int)style, richText, wrapWidth);
             return new Vector2((float)size[0], (float)size[1]);
         }
 

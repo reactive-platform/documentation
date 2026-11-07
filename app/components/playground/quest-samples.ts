@@ -350,10 +350,10 @@ protected:
 `;
 
 export const questSamples = [
-    { name: 'Counter', code: counter },
-    { name: 'Buttons', code: buttons },
-    { name: 'Animation', code: animation },
-    { name: 'List', code: list },
-    { name: 'Web Image', code: webImage },
-    { name: 'Layout', code: layout },
+    { name: 'Counter', description: 'A label and a button: the button changes a state, the label follows.', image: '/assets/playground/quest-counter.png', code: counter },
+    { name: 'Buttons', description: 'Buttons that count down clicks, with a reset and a disabled one.', image: '/assets/playground/quest-buttons.png', code: buttons },
+    { name: 'Animation', description: 'A box whose size and color animate through animated states, and a spinner.', image: '/assets/playground/quest-animation.png', code: animation },
+    { name: 'List', description: 'Forty players in a scroll area with a scrollbar, built by a repeater.', image: '/assets/playground/quest-list.png', code: list },
+    { name: 'Web Image', description: 'Two web images, one that loads and one that falls back to an icon.', image: '/assets/playground/quest-web-image.png', code: webImage },
+    { name: 'Layout', description: 'Growing, fixed and stacked boxes in nested flex layouts.', image: '/assets/playground/quest-layout.png', code: layout },
 ];

@@ -564,11 +564,11 @@ public class App : ReactiveComponent {
 `;
 
 export const samples = [
-    { name: 'Settings', code: settings },
-    { name: 'Buttons', code: buttons },
-    { name: 'Dialog', code: dialog },
-    { name: 'Input', code: input },
-    { name: 'List', code: list },
-    { name: 'Web Image', code: webImage },
-    { name: 'Layout', code: layout },
+    { name: 'Settings', description: 'A settings panel: a segmented control, a toggle, a slider, a dropdown and a list control, all bound to states.', image: '/assets/playground/pc-settings.png', code: settings },
+    { name: 'Buttons', description: 'Text, primary and image buttons, disabled ones and a spinner, counting clicks.', image: '/assets/playground/pc-buttons.png', code: buttons },
+    { name: 'Dialog', description: 'A dialog opened from a button, with Cancel and OK wired to states.', image: '/assets/playground/pc-dialog.png', code: dialog },
+    { name: 'Input', description: 'An input field with the keyboard modal, and a color picker with the hue circle.', image: '/assets/playground/pc-input.png', code: input },
+    { name: 'List', description: 'A scrolling list of beatmaps with a scrollbar, built by a repeater.', image: '/assets/playground/pc-list.png', code: list },
+    { name: 'Web Image', description: 'An image loaded from a URL and switched by a segmented control, plus an animated GIF.', image: '/assets/playground/pc-web-image.png', code: webImage },
+    { name: 'Layout', description: 'Flexbox rows and columns: fixed sizes, growing items and alignment.', image: '/assets/playground/pc-layout.png', code: layout },
 ];

@@ -2,6 +2,8 @@ export const UNIT_PX = 5;
 export const ORIGIN = location.origin;
 
 export const root = document.getElementById('root');
+// Extra resolution for the sprite canvases, raised by the host when it scales the frame up, so they stay crisp
+let density = 1;
 const nodes = new Map();
 const textures = new Map();
 const measure = document.createElement('canvas').getContext('2d');
@@ -38,11 +40,15 @@ function applyFont(el, size, style) {
     el.style.lineHeight = lineHeight(size, style) / size;
 }
 
-export function measureText(text, size, style, rich) {
-    if (rich) {
+export function measureText(text, size, style, rich, wrapWidth = 0) {
+    // Wrapped text goes through the same layout the renderer draws it with, so the lines break in the same places
+    if (rich || wrapWidth > 0) {
         applyFont(measureBox, size, style);
+        measureBox.style.whiteSpace = wrapWidth > 0 ? 'pre-wrap' : '';
+        measureBox.style.maxWidth = wrapWidth > 0 ? `${wrapWidth * UNIT_PX}px` : '';
         measureBox.textContent = '';
-        appendRichText(measureBox, text, style);
+        if (rich) appendRichText(measureBox, text, style);
+        else measureBox.textContent = transformText(text, style);
         const { width, height } = measureBox.getBoundingClientRect();
         return [width / UNIT_PX, height / UNIT_PX];
     }
@@ -226,7 +232,7 @@ function drawImage(el) {
         return;
     }
 
-    const scale = UNIT_PX * devicePixelRatio;
+    const scale = UNIT_PX * devicePixelRatio * density;
     const width = Math.max(1, Math.round(n.w * scale));
     const height = Math.max(1, Math.round(n.h * scale));
     const canvas = content(el, 'canvas', 'sprite');
@@ -449,6 +455,14 @@ export function render(batch) {
     for (const id of removed) {
         nodes.get(id).remove();
         nodes.delete(id);
+    }
+}
+
+export function setDensity(value) {
+    if (value === density) return;
+    density = value;
+    for (const el of nodes.values()) {
+        if (el.__node.k === 1) drawImage(el);
     }
 }
 

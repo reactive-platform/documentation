@@ -1,6 +1,11 @@
+/* The editor follows the docs' code blocks: same card background and the GitHub light / dark token colours. */
 .playground-editor .cm-editor {
-    background: var(--color-fd-background);
-    color: var(--color-fd-foreground);
+    background: var(--color-fd-card);
+    color: #24292e;
+}
+
+.dark .playground-editor .cm-editor {
+    color: #e1e4e8;
 }
 
 .playground-editor .cm-editor.cm-focused {
@@ -20,6 +25,11 @@
 
 .playground-editor .cm-cursor {
     border-left-color: var(--color-fd-foreground);
+}
+
+.playground-editor .cm-selectionBackground,
+.playground-editor .cm-editor.cm-focused .cm-selectionBackground {
+    background: color-mix(in srgb, var(--color-fd-primary) 25%, transparent);
 }
 
 .playground-editor .cm-tooltip {
@@ -46,18 +56,51 @@
     border: 1px solid var(--color-fd-border);
 }
 
-.playground-editor .tok-keyword { color: #a626a4; }
-.playground-editor .tok-string { color: #2f7d32; }
-.playground-editor .tok-comment { color: #6b7280; font-style: italic; }
+/* github-light */
+.playground-editor .tok-keyword { color: #d73a49; }
+.playground-editor .tok-string { color: #032f62; }
+.playground-editor .tok-comment { color: #6a737d; }
 .playground-editor .tok-number,
-.playground-editor .tok-atom { color: #a35c00; }
-.playground-editor .tok-typeName { color: #8a6100; }
-.playground-editor .tok-meta { color: #2f5fd0; }
+.playground-editor .tok-atom,
+.playground-editor .tok-bool { color: #005cc5; }
+.playground-editor .tok-typeName,
+.playground-editor .tok-definition { color: #6f42c1; }
+.playground-editor .tok-meta { color: #6a737d; }
 
-.dark .playground-editor .tok-keyword { color: #c678dd; }
-.dark .playground-editor .tok-string { color: #98c379; }
-.dark .playground-editor .tok-comment { color: #7f848e; }
+/* github-dark */
+.dark .playground-editor .tok-keyword { color: #f97583; }
+.dark .playground-editor .tok-string { color: #9ecbff; }
+.dark .playground-editor .tok-comment { color: #6a737d; }
 .dark .playground-editor .tok-number,
-.dark .playground-editor .tok-atom { color: #d19a66; }
-.dark .playground-editor .tok-typeName { color: #e5c07b; }
-.dark .playground-editor .tok-meta { color: #61afef; }
+.dark .playground-editor .tok-atom,
+.dark .playground-editor .tok-bool { color: #79b8ff; }
+.dark .playground-editor .tok-typeName,
+.dark .playground-editor .tok-definition { color: #b392f0; }
+.dark .playground-editor .tok-meta { color: #6a737d; }
+
+/* A code fence inside an example frame fills its pane instead of being a floating block. Its own 600px scroller stays */
+.playground-frame-code > figure,
+.playground-frame-code > pre {
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+
+/* The playground's editor takes the dragged share of the row only when the panes sit side by side */
+@media (min-width: 64rem) {
+    .playground-page .playground-editor-pane {
+        width: var(--split, 50%);
+    }
+}
+
+/* While a divider is dragged, frames must not take the pointer */
+.playground-resizing iframe {
+    pointer-events: none;
+}
+
+/* On the playground page the editor fills its pane and scrolls inside it; in a docs frame it grows with the text */
+.playground-page .playground-editor .cm-editor {
+    height: 100%;
+}

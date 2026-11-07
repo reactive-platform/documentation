@@ -201,6 +201,12 @@ namespace TMPro {
         public Vector2 GetPreferredValues() {
             return PlaygroundEngine.MeasureText(text, enableAutoSizing ? fontSizeMax : fontSize, fontStyle, HasRichText);
         }
+
+        /// <summary>The size of the text laid out within the width. The height doesn't change how text wraps, so it's unused.</summary>
+        public Vector2 GetPreferredValues(float width, float height) {
+            var wrapWidth = enableWordWrapping && !float.IsInfinity(width) ? width : 0f;
+            return PlaygroundEngine.MeasureText(text, enableAutoSizing ? fontSizeMax : fontSize, fontStyle, HasRichText, wrapWidth);
+        }
     }
 
     public class TextMeshProUGUI : TMP_Text { }

@@ -5,6 +5,7 @@ import {
     metaSchema,
 } from 'fumadocs-mdx/config';
 import {remarkMermaid} from "@/app/plugins/remarkMermaid";
+import {remarkPlayground} from "@/app/plugins/remarkPlayground";
 
 // You can customise Zod schemas for frontmatter and `meta.json` here
 // see https://fumadocs.vercel.app/docs/mdx/collections#define-docs
@@ -20,6 +21,6 @@ export const docs = defineDocs({
 
 export default defineConfig({
     mdxOptions: {
-        remarkPlugins: [remarkMermaid]
+        remarkPlugins: [remarkMermaid, remarkPlayground]
     },
 });

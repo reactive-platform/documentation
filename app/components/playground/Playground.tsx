@@ -6,20 +6,10 @@ import { CONTROL, SEGMENTS, segment } from './controls';
 import { readPlaygroundUrl } from './encode';
 import { Editor } from './editor';
 import { assemble, defaultFileName, fileExtension, freshFileName, locate, type SourceFile } from './files';
+import { FileIcon } from './PlaygroundFrame';
 import { questSamples } from './quest-samples';
 import { type CompilerDiagnostic, getCompiler, PLATFORMS, type PlatformName, Preview } from './runtime';
 import { samples } from './samples';
-
-function FileIcon() {
-    return (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
-            <path d="M10 12.5 8 15l2 2.5" />
-            <path d="m14 12.5 2 2.5-2 2.5" />
-            <path d="M14 2v4a2 2 0 0 0 2 2h4" />
-            <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z" />
-        </svg>
-    );
-}
 
 const SAMPLES = { pc: samples, quest: questSamples };
 

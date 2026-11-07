@@ -1,4 +1,4 @@
-import { clearScene, fontLoaded, log, measureText, ORIGIN, render, root, send, setTexture, startLoop, UNIT_PX, uploadTexture } from '../preview/renderer.js';
+import { clearScene, fontLoaded, log, measureText, ORIGIN, render, root, send, setDensity, setTexture, startLoop, UNIT_PX, uploadTexture } from '../preview/renderer.js';
 
 const POINTER_KINDS = { move: 0, down: 1, up: 2, scroll: 3 };
 
@@ -137,7 +137,12 @@ startLoop({
 });
 
 window.addEventListener('message', async (e) => {
-    if (e.origin !== ORIGIN || e.data?.type !== 'run') return;
+    if (e.origin !== ORIGIN) return;
+    if (e.data?.type === 'density') {
+        setDensity(e.data.value);
+        return;
+    }
+    if (e.data?.type !== 'run') return;
 
     const { id, assembly } = e.data;
     latestRun = id;

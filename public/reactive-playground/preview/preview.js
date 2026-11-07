@@ -1,5 +1,5 @@
 import { dotnet } from './_framework/dotnet.js';
-import { fontLoaded, log, measureText, ORIGIN, render, send, startLoop, uploadTexture } from './renderer.js';
+import { fontLoaded, log, measureText, ORIGIN, render, send, setDensity, startLoop, uploadTexture } from './renderer.js';
 import { loadCompressed } from './load-compressed.js';
 
 const runtime = await dotnet.withResourceLoader(loadCompressed).create();
@@ -11,7 +11,12 @@ const bridge = exports.Preview.Bridge;
 startLoop({ tick: bridge.Tick, setRootSize: bridge.SetRootSize, pointer: bridge.Pointer });
 
 window.addEventListener('message', (e) => {
-    if (e.origin !== ORIGIN || e.data?.type !== 'run') return;
+    if (e.origin !== ORIGIN) return;
+    if (e.data?.type === 'density') {
+        setDensity(e.data.value);
+        return;
+    }
+    if (e.data?.type !== 'run') return;
 
     const started = performance.now();
     const error = bridge.Run(new Uint8Array(e.data.assembly));

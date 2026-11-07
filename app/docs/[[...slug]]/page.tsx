@@ -19,7 +19,7 @@ export default async function Page(props: {
   const { body: MDXContent, toc } = await page.data.load();
 
   return (
-    <DocsPage toc={toc} full={page.data.full}>
+    <DocsPage toc={toc} full={page.data.full} footer={{ className: 'mt-12' }}>
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
       <DocsBody>

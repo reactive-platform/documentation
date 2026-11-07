@@ -1,0 +1,10 @@
+{
+  "$schema": "https://raw.githubusercontent.com/bsmg/BSIPA-MetadataFileSchema/master/Schema.json",
+  "id": "DocsCapture",
+  "name": "Docs Capture",
+  "author": "docs",
+  "version": "0.1.0",
+  "description": "Temporary helper that renders documentation samples on a flat canvas for screenshots.",
+  "gameVersion": "1.42.0",
+  "dependsOn": { "BSIPA": "^4.3.5", "Reactive": "^2.0.0" }
+}

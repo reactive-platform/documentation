@@ -1,0 +1,140 @@
+---
+title: "Dropdown"
+description: A field that opens a list of keyed items in a modal.
+---
+
+`BsDropdown<TKey>` is the game's dropdown: a field showing the selected item, and a scrolling list that opens over
+the screen when you click it. The showcase's *Dropdown* page:
+
+<Playground preview="/assets/sdk/dropdown.gif">
+```csharp excerpt
+new BsDropdown<int> {
+    sColors = colors,
+    sInteractable = interactable,
+    Key = 1,
+    Items = new Dictionary<int, BsDropdownItem> {
+        [0] = new("Edit", GameResources.EditIcon),
+        [1] = new("Search", GameResources.SearchIcon),
+        [2] = new("Close", GameResources.CloseIcon),
+        [3] = new("Arrow", GameResources.ArrowIcon)
+    }
+},
+
+new BsDropdown<int> {
+    sColors = colors,
+    sInteractable = interactable,
+    ModalParams = new() { MaxVisibleRows = 3 },
+    Key = 0,
+    Items = CreateNumbered(12)
+}
+```
+```csharp
+class Dropdowns : ReactiveComponent {
+    protected override GameObject Construct() {
+        return new Layout {
+            FlexController = {
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 20.pt
+            },
+
+            Children = {
+                new BsDropdown<int> {
+                    FlexItem = { Size = new() { x = 40.pt, y = 7.pt } },
+                    Key = 1,
+                    Items = new Dictionary<int, BsDropdownItem> {
+                        [0] = new("Edit", GameResources.EditIcon),
+                        [1] = new("Search", GameResources.SearchIcon),
+                        [2] = new("Close", GameResources.CloseIcon),
+                        [3] = new("Arrow", GameResources.ArrowIcon)
+                    }
+                },
+
+                new BsDropdown<int> {
+                    FlexItem = { Size = new() { x = 40.pt, y = 7.pt } },
+                    ModalParams = new() { MaxVisibleRows = 3 },
+                    Key = 0,
+                    Items = CreateNumbered(12)
+                }
+            }
+        }.Use();
+    }
+
+    private static Dictionary<int, BsDropdownItem> CreateNumbered(int count) {
+        var items = new Dictionary<int, BsDropdownItem>();
+        for (var i = 0; i < count; i++) {
+            items[i] = new($"Item {i + 1}", null);
+        }
+        return items;
+    }
+}
+```
+</Playground>
+
+
+`Items`, `Key` and `OnKeyChanged` work like the segmented control's, with `BsDropdownItem(text, icon)` per item.
+What's new is `ModalParams`, which shapes the list that opens:
+
+```csharp
+new BsDropdown<string> {
+    ModalParams = new() {
+        MaxVisibleRows = 4,
+        Width = 36.pt
+    },
+
+    Key = "Ease In Out Back",
+    Items = items
+}
+```
+
+`MaxVisibleRows` is how many items show before the list scrolls. `Width` sizes the list: points are fixed, percents
+follow the field's width, and `MinWidth` and `MaxWidth` clamp it, with `YogaValue.Undefined` removing a limit.
+The default is the field's width within 24 to 46 points. `CompositionAnimParams` is the overlay behaviour from
+[Modals](/docs/sdk/modals#how-overlays-work), so `new() { DimCanvas = true }` dims the screen behind the list.
+
+The list is a modal leased from the global pool while it's open. A screen with twenty dropdowns therefore has one
+list, not twenty. That's `SharedModal`, and it's also on the modals page.
+
+## Properties
+
+Every property with a setter also has an `s`-version that takes a state.
+
+<TypeTable
+  type={{
+  "Items": {
+    "type": "IReadOnlyDictionary<T, BsDropdownItem>",
+    "description": "The options, in enumeration order. BsDropdownItem(text, icon).",
+    "required": true
+  },
+  "Key": {
+    "type": "T",
+    "description": "The selected key. Fires OnKeyChanged when it changes.",
+    "required": true
+  },
+  "ModalParams": {
+    "type": "BsDropdownModalParams",
+    "description": "MaxVisibleRows (5), Width, MinWidth (24pt), MaxWidth (46pt) and CompositionAnimParams for the list that opens. Synced to an open list.",
+    "default": "new()"
+  },
+  "Skew": {
+    "type": "float",
+    "description": "Field slant.",
+    "default": "BeatSaberStyle.Skew"
+  },
+  "Interactable": {
+    "type": "bool",
+    "description": "Whether clicking opens the list.",
+    "default": "true"
+  },
+  "Colors": {
+    "type": "BsDropdownColors",
+    "description": "Color sets for ButtonBackgroundColors, ArrowColors, ItemContentColors and ItemBackgroundColors.",
+    "default": "BeatSaberStyle.BsDropdownColors"
+  },
+  "OnKeyChanged": {
+    "type": "Action<T>?",
+    "description": "Called with the new key.",
+    "default": "null"
+  }
+}}
+/>

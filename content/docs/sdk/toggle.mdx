@@ -1,0 +1,96 @@
+---
+title: "Toggle"
+description: The on/off switch, bound both ways.
+---
+
+`BsToggle` is the game's switch. The showcase's *Toggle* page shows the knobs you can turn:
+
+<Playground preview="/assets/sdk/toggle.gif">
+```csharp excerpt
+new BsToggle(),
+new BsToggle { Toggled = true, sColors = colors },
+new BsToggle { Animated = false, sColors = colors },
+new BsToggle { Interactable = false, sColors = colors },
+new BsToggle { Toggled = true, Interactable = false, sColors = colors }
+```
+```csharp
+class Toggles : ReactiveComponent {
+    protected override GameObject Construct() {
+        return new Layout {
+            FlexController = {
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 3.pt
+            },
+
+            Children = {
+                new BsToggle(),
+                new BsToggle { Toggled = true },
+                new BsToggle { Animated = false },
+                new BsToggle { Interactable = false },
+                new BsToggle { Toggled = true, Interactable = false }
+            }
+        }.Use();
+    }
+}
+```
+</Playground>
+
+
+`Toggled` is the value, `OnToggleStateChanged` fires when the user flips it, `Animated = false` snaps the knob
+instead of sliding it, and `Interactable` greys it out. You've already seen the way to use it in
+[Property Bindings](/docs/reactive/state/bindings#the-s-properties):
+
+```csharp
+new BsToggle {
+    sToggled = enabled,
+    OnToggleStateChanged = x => enabled.Value = x
+}
+```
+
+Setting `Toggled` from code moves the knob too, which the showcase uses for a row of toggles that ripple on their
+own from `OnUpdate`, and a binary counter whose toggles are `Interactable = false` and set from a callback:
+
+```csharp
+_counter.AddCallback(x => {
+    for (var i = 0; i < _bits.Length; i++) {
+        _bits[i].Toggled = (x & (1 << i)) != 0;
+    }
+}, lazy: true);
+```
+
+For a settings line, `new BsToggle { ... }.InNamedRail("Show scores")` gives you the label-left, toggle-right row.
+
+## Properties
+
+Every property with a setter also has an `s`-version that takes a state.
+
+<TypeTable
+  type={{
+  "Toggled": {
+    "type": "bool",
+    "description": "On or off. Setting it from code moves the knob and fires OnToggleStateChanged.",
+    "default": "false"
+  },
+  "Interactable": {
+    "type": "bool",
+    "description": "Whether clicking flips it.",
+    "default": "true"
+  },
+  "Animated": {
+    "type": "bool",
+    "description": "Whether the knob slides. False snaps it.",
+    "default": "true"
+  },
+  "Colors": {
+    "type": "BsToggleColors",
+    "description": "Color sets for BackgroundColors, KnobColors and TextColors.",
+    "default": "BeatSaberStyle.BsToggleColors"
+  },
+  "OnToggleStateChanged": {
+    "type": "Action<bool>?",
+    "description": "Called with the new value whenever Toggled changes, by the user or from code.",
+    "default": "null"
+  }
+}}
+/>

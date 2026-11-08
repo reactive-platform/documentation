@@ -1,0 +1,223 @@
+---
+title: "Aero Buttons"
+description: The glassy menu-style button, always with content of your own.
+---
+
+An aero button is the frosted, glass-like button from the game's main menu. It doesn't come in text or image
+flavours. You always give it content through `ConstructContent`, the same way as on the [base button](/docs/sdk/buttons#your-own-content).
+The showcase's *Aero buttons* page builds one with an icon and a label:
+
+<Playground preview="/assets/sdk/aero-buttons.gif">
+```csharp excerpt
+private static BsAeroButton CreateIconButton(Sprite icon, string text) {
+    return new BsAeroButton {
+        FlexController = {
+            Padding = new() { left = 2.pt, right = 2.pt },
+            AlignItems = Align.Center,
+            Gap = 1.pt
+        },
+
+        FlexItem = {
+            Size = new() { y = 8.pt }
+        },
+
+        sColors = Palette.Map(ShowcaseStyles.AeroButton),
+
+        ConstructContent = (color, skew) => new Layout {
+            FlexItem = {
+                Size = new() { y = 100.pct },
+                FlexShrink = 1f
+            },
+
+            FlexController = {
+                AlignItems = Align.Center,
+                Gap = 1.pt
+            },
+
+            Children = {
+                new Image {
+                    FlexItem = {
+                        Size = new() { y = 55.pct },
+                        AspectRatio = 1f
+                    },
+
+                    Sprite = icon,
+                    PreserveAspect = true,
+                    sColor = color.In(),
+                    sSkew = skew.In()
+                },
+
+                new Label {
+                    FlexItem = {
+                        FlexShrink = 1f
+                    },
+
+                    Text = text,
+                    EnableWrapping = false,
+                    Overflow = TextOverflowModes.Ellipsis,
+                    sFontStyle = skew.Map(x => x > 0
+                        ? FontStyles.Italic
+                        : FontStyles.Normal
+                    ),
+                    sColor = color.In()
+                }
+            }
+        }
+    };
+}
+```
+```csharp
+class AeroButtons : ReactiveComponent {
+    protected override GameObject Construct() {
+        return new Layout {
+            FlexController = {
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center
+            },
+
+            Children = {
+                new Layout {
+                    FlexController = {
+                        FlexDirection = FlexDirection.Column,
+                        AlignItems = Align.Stretch,
+                        Gap = 1.pt
+                    },
+
+                    FlexItem = {
+                        Size = new() { x = 40.pt }
+                    },
+
+                    Children = {
+                        CreateIconButton(
+                            icon: GameResources.EditIcon,
+                            text: "Edit"
+                        ),
+                        CreateIconButton(
+                            icon: GameResources.SearchIcon,
+                            text: "Search"
+                        ),
+                        CreateIconButton(
+                            icon: GameResources.CloseIcon,
+                            text: "Close"
+                        )
+                    }
+                }
+            }
+        }.Use();
+    }
+
+    [StateGen]
+    private static BsAeroButton CreateIconButton(Sprite icon, string text) {
+        return new BsAeroButton {
+            FlexController = {
+                Padding = new() { left = 2.pt, right = 2.pt },
+                AlignItems = Align.Center,
+                Gap = 1.pt
+            },
+
+            FlexItem = {
+                Size = new() { y = 8.pt }
+            },
+
+            ConstructContent = (color, skew) => new Layout {
+                FlexItem = {
+                    Size = new() { y = 100.pct },
+                    FlexShrink = 1f
+                },
+
+                FlexController = {
+                    AlignItems = Align.Center,
+                    Gap = 1.pt
+                },
+
+                Children = {
+                    new Image {
+                        FlexItem = {
+                            Size = new() { y = 55.pct },
+                            AspectRatio = 1f
+                        },
+
+                        Sprite = icon,
+                        PreserveAspect = true,
+                        sColor = color.In(),
+                        sSkew = skew.In()
+                    },
+
+                    new Label {
+                        FlexItem = {
+                            FlexShrink = 1f
+                        },
+
+                        Text = text,
+                        EnableWrapping = false,
+                        Overflow = TextOverflowModes.Ellipsis,
+                        sFontStyle = skew.Map(x => x > 0
+                            ? FontStyles.Italic
+                            : FontStyles.Normal
+                        ),
+                        sColor = color.In()
+                    }
+                }
+            }
+        };
+    }
+}
+```
+</Playground>
+
+
+The layout details are the useful part. The icon is sized as a percentage of the button's height with an aspect ratio,
+so it scales with the button. The label can shrink and truncates with an ellipsis, so a long caption doesn't push
+the button wider. And the label's italics follow the skew state, which is what the SDK's own text does inside
+skewed components.
+
+The showcase also shows overriding a single nested color per button, which is the same `with` pattern as the
+[SDK Overview](/docs/sdk#styling), just deeper:
+
+```csharp
+colors with {
+    BackgroundColors = colors.BackgroundColors with {
+        Colors = colors.BackgroundColors.Colors with {
+            HoveredColor = someColor
+        }
+    }
+}
+```
+
+## Properties
+
+Every property with a setter also has an `s`-version that takes a state.
+
+<TypeTable
+  type={{
+  "ConstructContent": {
+    "type": "ConstructContentDelegate",
+    "description": "Builds the content from the content color state and the skew state.",
+    "required": true
+  },
+  "Skew": {
+    "type": "float",
+    "description": "Background slant.",
+    "default": "BeatSaberStyle.Skew"
+  },
+  "Interactable": {
+    "type": "bool",
+    "description": "Whether clicks are handled.",
+    "default": "true"
+  },
+  "Colors": {
+    "type": "BsAeroButtonColors",
+    "description": "Color sets for BackgroundColors and ContentColors.",
+    "default": "BeatSaberStyle.BsAeroButtonColors"
+  },
+  "OnClick": {
+    "type": "Action?",
+    "description": "Click callback.",
+    "default": "null"
+  },
+  "LayoutController": {
+    "type": "ILayoutController?",
+    "description": "Layout controller of the inner background. FlexController works on it."
+  }
+}}
+/>

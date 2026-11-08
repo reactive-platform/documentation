@@ -1,0 +1,179 @@
+---
+title: "Scroll Areas and Scrollbars"
+description: Scrolling content that isn't a list, with a scrollbar and joystick support.
+---
+
+A `Table` scrolls a list. For anything else that's taller than its space, a settings page, a block of text, there's
+`ScrollArea`. Every page in the showcase is one:
+
+<Playground preview="/assets/sdk/scroll-area.gif">
+```csharp excerpt
+var context = new ScrollContext();
+
+var content = new Layout {
+    FlexController = {
+        FlexDirection = FlexDirection.Column,
+        ConstrainVertical = false,
+        Gap = 2.pt
+    },
+
+    Children = { ... }
+};
+
+new Layout {
+    FlexController = {
+        AlignItems = Align.Stretch,
+        Gap = 1.pt
+    },
+
+    Children = {
+        new ScrollArea {
+            FlexItem = {
+                Flex = 1
+            },
+
+            ScrollContext = context,
+            ScrollContent = content
+        },
+
+        new Scrollbar {
+            FlexItem = {
+                Margin = new() { top = 9.pt }
+            },
+
+            ScrollContext = context
+        }
+    }
+}
+```
+```csharp
+class SettingsList : ReactiveComponent {
+    protected override GameObject Construct() {
+        var context = new ScrollContext();
+
+        var content = new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Stretch,
+                ConstrainVertical = false,
+                Gap = 2.pt
+            }
+        };
+
+        for (var i = 1; i <= 14; i++) {
+            content.Children.Add(CreateRow(
+                name: $"Setting {i}",
+                on: i % 3 != 0
+            ));
+        }
+
+        return new Layout {
+            FlexController = {
+                AlignItems = Align.Stretch,
+                JustifyContent = Justify.Center,
+                Gap = 1.pt
+            },
+
+            Children = {
+                new ScrollArea {
+                    FlexItem = {
+                        Size = new() { x = 70.pt, y = 50.pt }
+                    },
+
+                    ScrollContext = context,
+                    ScrollContent = content
+                },
+
+                new Scrollbar {
+                    FlexItem = {
+                        Margin = new() { top = 9.pt }
+                    },
+
+                    ScrollContext = context
+                }
+            }
+        }.Use();
+    }
+
+    private static Background CreateRow(string name, bool on) {
+        return new Background {
+            FlexController = {
+                AlignItems = Align.Center,
+                Padding = new() {
+                    left = 3.pt,
+                    right = 3.pt,
+                    top = 2.pt,
+                    bottom = 2.pt
+                }
+            },
+
+            Sprite = BeatSaberResources.Sprites.background,
+            PixelsPerUnit = 10f,
+            Color = Color.white with { a = 0.1f },
+
+            Children = {
+                new Label {
+                    Text = name,
+                    Alignment = TextAlignmentOptions.Left,
+                    FlexItem = { Flex = 1 }
+                },
+                new BsToggle { Toggled = on }
+            }
+        };
+    }
+}
+```
+</Playground>
+
+
+`ScrollContent` is the component that scrolls. It's a root inside the area, so it sizes against the area's width,
+and `ConstrainVertical = false` is what lets it be as tall as its content rather than as tall as the area.
+Without that it would fit the viewport and have nothing to scroll. `ScrollOrientation` makes the area horizontal,
+in which case it's `ConstrainHorizontal` you turn off instead.
+
+The `ScrollContext` is the same one from [Repeaters and Tables](/docs/reactive/lists/lists#tables-and-scrolling). It connects the area to the
+`Scrollbar`, and anything else that wants to read or drive the scroll position: `ScrollTo`, `PageDown`,
+`NormalizedScrollPos` and the rest. `LineSize` on the area is how far one wheel notch moves and
+`JoystickScrollSpeed` how fast the controller joystick scrolls, which is the VR input that plain graphics don't get,
+as [Pointer Input and Interaction](/docs/reactive/input#scrolling) mentioned.
+## Properties
+
+These are `ScrollArea`'s. `Scrollbar` takes the same `ScrollContext` plus `ScrollMode` (Page, Line or Fixed), `FixedScrollSize` and `HideIfNothingToScroll`. `ScrollContext` itself has no setters. It is driven through `ScrollTo`, `ScrollRelative`, `PageUp`, `PageDown`, `LineUp` and `LineDown`, and read through `ScrollPos`, `MaxScrollPos`, `NormalizedScrollPos`, `ContentSize`, `ViewSize` and `CanScroll`. Every property with a setter also has an `s`-version that takes a state.
+
+<TypeTable
+  type={{
+  "ScrollContext": {
+    "type": "ScrollContext",
+    "description": "The shared scroll state. A raw state.",
+    "required": true
+  },
+  "ScrollContent": {
+    "type": "IReactiveComponent",
+    "description": "The component that scrolls. A root inside the area, so turn off its constraint along the scroll axis.",
+    "required": true
+  },
+  "ScrollOrientation": {
+    "type": "ScrollOrientation",
+    "description": "Vertical or Horizontal.",
+    "default": "Vertical"
+  },
+  "LineSize": {
+    "type": "float",
+    "description": "How far one wheel notch or line scrolls.",
+    "default": "10f"
+  },
+  "JoystickScrollSpeed": {
+    "type": "float",
+    "description": "VR joystick speed, units per second.",
+    "default": "60f"
+  },
+  "FinalizeScroll": {
+    "type": "Func<ScrollContext, float>?",
+    "description": "Adjusts the destination after a scroll, for snapping.",
+    "default": "null"
+  }
+}}
+/>
+
+That's the SDK. The last section, [Under the hood](/docs/reactive/under-the-hood/component), is for when you want to know how
+all of this actually works.

@@ -1,0 +1,554 @@
+---
+title: "Animation Player"
+description: "Animating a target with reusable animations: tracks, chaining, repetition and direction."
+---
+
+## Animation players
+
+An animated state animates a value. An animation player animates a *target*, usually a component. It fades it in,
+scales it up, spins it. The player is the tool for entrances, exits and sequences, where "head for this value" is not
+the shape of the problem.
+
+<Playground showCode>
+```csharp
+partial class PlayerDemo : ReactiveComponent {
+    private static readonly Animation<IReactiveComponent> Grow = new(
+        Track: AnimationTracks.Scale(0.3f, 1f),
+        Duration: 1.5f.sec,
+        Curve: AnimationCurve.EaseOutCubic
+    );
+
+    private static readonly Animation<IReactiveComponent> FadeOut = new(
+        Track: AnimationTracks.Fade(1f, 0f),
+        Duration: 400.ms
+    );
+
+    private static readonly Animation<IReactiveComponent> FadeIn = new(
+        Track: AnimationTracks.Fade(0f, 1f),
+        Duration: 400.ms
+    );
+
+    protected override GameObject Construct() {
+        var box = CreateBox();
+
+        // The player needs its target, and stops together with this component
+        var player = RememberAnimationPlayer<IReactiveComponent>(box);
+
+        return CreateLayout(
+            box: box,
+            buttons: [
+                CreateButton(
+                    text: "Grow",
+                    onClick: () => player.Play(Grow)
+                ),
+
+                CreateButton(
+                    text: "Stop",
+                    onClick: () => player.Stop()
+                ),
+
+                CreateButton(
+                    text: "Finish",
+                    onClick: () => player.Finish()
+                ),
+
+                CreateButton(
+                    text: "Round trip",
+                    onClick: () => player.Play(
+                        animation: FadeOut,
+                        onFinished: () => player.Play(FadeIn)
+                    )
+                )
+            ]
+        );
+    }
+}
+```
+```csharp title="Ui.cs"
+partial class PlayerDemo {
+    private static Background CreateBox() {
+        return new Background {
+            FlexItem = { Size = 14.pt },
+            Sprite = BeatSaberResources.Sprites.background,
+            PixelsPerUnit = 10f,
+            Color = new Color(0f, 0.75f, 1f)
+        };
+    }
+
+    private static BsTextButton CreateButton(string text, Action onClick) {
+        return new BsTextButton {
+            Text = text,
+            OnClick = onClick
+        };
+    }
+
+    private static Layout CreateRow(BsTextButton[] buttons) {
+        var row = new Layout {
+            FlexController = { Gap = 1.pt }
+        };
+
+        foreach (var button in buttons) {
+            row.Children.Add(button);
+        }
+
+        return row;
+    }
+
+    private static GameObject CreateLayout(
+        ILayoutItem box,
+        BsTextButton[] buttons
+    ) {
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 4.pt
+            },
+
+            Children = {
+                box,
+                CreateRow(buttons)
+            }
+        }.Use();
+    }
+}
+```
+</Playground>
+
+An `Animation<T>` is an immutable description: a track and a duration, plus an optional curve, iteration count and
+direction. It can live in a static field and be shared between players. `RememberAnimationPlayer(target)` creates a
+player for a target that already exists and binds it to the calling component as a module, so it ticks with the
+component and stops with it.
+
+`Play` starts an animation and replaces whatever was playing. It applies the first frame immediately, so the target
+doesn't sit at the old values for a frame. `Stop` freezes the target where it is. `Finish` jumps to the end. The
+callback on `Play` runs when the animation completes, which is how you chain animations. `IsPlaying`, `Animation` and
+`Iteration` report what is going on.
+
+## Tracks
+
+A track is what an animation does with its progress. It is a single method, `Apply(target, progress)`.
+`AnimationTracks.Fade` goes through a `CanvasGroup` on the target. `AnimationTracks.Scale` sets the transform's scale.
+`+` runs two tracks together, and `AnimationTracks.Create` turns any function of the target and the progress into a
+track.
+
+<Playground showCode>
+```csharp
+partial class TracksDemo : ReactiveComponent {
+    // Two tracks at once
+    private static readonly Animation<IReactiveComponent> Pop = new(
+        Track: AnimationTracks.Scale(0.4f, 1f) + AnimationTracks.Fade(0.3f, 1f),
+        Duration: 450.ms,
+        Curve: AnimationCurve.EaseOutBack
+    );
+
+    // Any function of the target and the progress
+    private static readonly Animation<IReactiveComponent> Spin = new(
+        Track: AnimationTracks.Create<IReactiveComponent>((x, t) => {
+            x.ContentTransform.localEulerAngles = new(0f, 0f, t * 360f);
+        }),
+        Duration: 700.ms,
+        Curve: AnimationCurve.EaseInOutCubic
+    );
+
+    private static readonly Animation<IReactiveComponent> Wobble = new(
+        Track: AnimationTracks.Create<IReactiveComponent>((x, t) => {
+            var angle = Mathf.Sin(t * Mathf.PI * 6f) * (1f - t) * 20f;
+            x.ContentTransform.localEulerAngles = new(0f, 0f, angle);
+        }),
+        Duration: 600.ms
+    );
+
+    protected override GameObject Construct() {
+        var box = CreateBox();
+
+        // The player needs its target, and stops together with this component
+        var player = RememberAnimationPlayer<IReactiveComponent>(box);
+
+        return CreateLayout(
+            box: box,
+            buttons: [
+                CreateButton(
+                    text: "Pop",
+                    onClick: () => player.Play(Pop)
+                ),
+
+                CreateButton(
+                    text: "Spin",
+                    onClick: () => player.Play(Spin)
+                ),
+
+                CreateButton(
+                    text: "Wobble",
+                    onClick: () => player.Play(Wobble)
+                )
+            ]
+        );
+    }
+}
+```
+```csharp title="Ui.cs"
+partial class TracksDemo {
+    private static Background CreateBox() {
+        return new Background {
+            FlexItem = { Size = 14.pt },
+            Sprite = BeatSaberResources.Sprites.background,
+            PixelsPerUnit = 10f,
+            Color = new Color(0f, 0.75f, 1f)
+        };
+    }
+
+    private static BsTextButton CreateButton(string text, Action onClick) {
+        return new BsTextButton {
+            Text = text,
+            OnClick = onClick
+        };
+    }
+
+    private static Layout CreateRow(BsTextButton[] buttons) {
+        var row = new Layout {
+            FlexController = { Gap = 1.pt }
+        };
+
+        foreach (var button in buttons) {
+            row.Children.Add(button);
+        }
+
+        return row;
+    }
+
+    private static GameObject CreateLayout(
+        ILayoutItem box,
+        BsTextButton[] buttons
+    ) {
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 5.pt
+            },
+
+            Children = {
+                box,
+                CreateRow(buttons)
+            }
+        }.Use();
+    }
+}
+```
+</Playground>
+
+`.For(selector)` points a track written for one type at a part of another, so a fade written for components can
+target a card's icon. The target doesn't have to be a component. A player over a `State<float>` with a track that
+writes `x.Value = t` drives a plain state, and that state then binds to anything.
+
+## Repeating and direction
+
+`Iterations` is how many times the animation plays. It can be a number like `3`, a fraction like `2.5f` to stop
+partway through the last run, or `AnimationIteration.Infinite` to repeat until stopped. `Finish` on an infinite
+animation completes the run it is in. Because `Animation` is a record, `beat with { Iterations = 3 }` makes a variant
+without touching the shared one.
+
+<Playground showCode>
+```csharp
+partial class RepeatingDemo : ReactiveComponent {
+    private static readonly Animation<IReactiveComponent> Beat = new(
+        Track: AnimationTracks.Scale(1f, 1.4f),
+        Duration: 500.ms,
+        Curve: AnimationCurve.EaseOutCubic
+    );
+
+    private AnimationPlayer<IReactiveComponent> _player = null!;
+    private State<string> _status = null!;
+
+    protected override GameObject Construct() {
+        var box = CreateBox();
+
+        _player = RememberAnimationPlayer<IReactiveComponent>(box);
+        _status = Remember("not playing");
+
+        return CreateLayout(
+            box: box,
+            status: _status,
+            iterations: [
+                CreateButton(
+                    text: "Once",
+                    onClick: () => Play(1)
+                ),
+
+                CreateButton(
+                    text: "3 times",
+                    onClick: () => Play(3)
+                ),
+
+                CreateButton(
+                    text: "2.5 times",
+                    onClick: () => Play(2.5f)
+                ),
+
+                CreateButton(
+                    text: "Forever",
+                    onClick: () => Play(AnimationIteration.Infinite)
+                )
+            ],
+            controls: [
+                CreateButton(
+                    text: "Stop",
+                    onClick: () => _player.Stop()
+                ),
+
+                CreateButton(
+                    text: "Finish",
+                    onClick: () => _player.Finish()
+                )
+            ]
+        );
+    }
+
+    // A variant of the shared animation, which stays as it was
+    private void Play(AnimationIteration iterations) {
+        _player.Play(Beat with { Iterations = iterations });
+    }
+
+    protected override void OnUpdate() {
+        _status.Value = _player.IsPlaying
+            ? $"iteration {_player.Iteration}"
+            : "not playing";
+    }
+}
+```
+```csharp title="Ui.cs"
+partial class RepeatingDemo {
+    private static Background CreateBox() {
+        return new Background {
+            FlexItem = { Size = 12.pt },
+            Sprite = BeatSaberResources.Sprites.background,
+            PixelsPerUnit = 10f,
+            Color = new Color(1f, 0.3f, 0.5f)
+        };
+    }
+
+    private static BsTextButton CreateButton(string text, Action onClick) {
+        return new BsTextButton {
+            Text = text,
+            OnClick = onClick
+        };
+    }
+
+    private static Layout CreateRow(BsTextButton[] buttons) {
+        var row = new Layout {
+            FlexController = { Gap = 1.pt }
+        };
+
+        foreach (var button in buttons) {
+            row.Children.Add(button);
+        }
+
+        return row;
+    }
+
+    [StateGen]
+    private static GameObject CreateLayout(
+        ILayoutItem box,
+        IState<string> status,
+        BsTextButton[] iterations,
+        BsTextButton[] controls
+    ) {
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 3.pt
+            },
+
+            Children = {
+                box,
+
+                new Label {
+                    FontSize = 3.2f,
+                    Color = Color.white with { a = 0.6f },
+                    sText = status.In()
+                },
+
+                CreateRow(iterations),
+                CreateRow(controls)
+            }
+        }.Use();
+    }
+}
+```
+</Playground>
+
+`Direction` behaves as in CSS. `Normal` plays every run forwards. `Reverse` plays every run backwards. `Alternate`
+flips every other run, so a repeat continues from where the last one ended instead of jumping back, which is what
+anything that loops visibly wants. `AlternateReverse` is the same, starting backwards. The curve applies to the
+directed progress, so a reversed ease-in feels like an ease-out.
+
+<Playground showCode>
+```csharp
+partial class DirectionDemo : ReactiveComponent {
+    // The player's target is a plain state, which the dot's position follows
+    private static readonly IAnimationTrack<State<float>> Move =
+        AnimationTracks.Create<State<float>>((x, t) => x.Value = t);
+
+    private readonly List<(
+        AnimationPlayer<State<float>> Player,
+        AnimationDirection Direction
+    )> _rows = new();
+
+    protected override GameObject Construct() {
+        return CreateLayout(
+            buttons: [
+                CreateButton(
+                    text: "Play 3 times",
+                    onClick: () => Play(3)
+                ),
+
+                CreateButton(
+                    text: "Loop",
+                    onClick: () => Play(AnimationIteration.Infinite)
+                ),
+
+                CreateButton(
+                    text: "Stop",
+                    onClick: () => _rows.ForEach(x => x.Player.Stop())
+                )
+            ],
+            rows: [
+                CreateRow(AnimationDirection.Normal),
+                CreateRow(AnimationDirection.Reverse),
+                CreateRow(AnimationDirection.Alternate),
+                CreateRow(AnimationDirection.AlternateReverse)
+            ]
+        );
+    }
+
+    private Layout CreateRow(AnimationDirection direction) {
+        var position = Remember(0f);
+        _rows.Add((RememberAnimationPlayer(position), direction));
+
+        return CreateRowLayout(
+            name: direction.ToString(),
+            position: position
+        );
+    }
+
+    private void Play(AnimationIteration iterations) {
+        foreach (var (player, direction) in _rows) {
+            player.Play(new(
+                Track: Move,
+                Duration: 700.ms,
+                Curve: AnimationCurve.EaseInOutSine,
+                Iterations: iterations,
+                Direction: direction
+            ));
+        }
+    }
+}
+```
+```csharp title="Ui.cs"
+partial class DirectionDemo {
+    private const float TrackWidth = 40f;
+    private const float DotSize = 4f;
+
+    private static BsTextButton CreateButton(string text, Action onClick) {
+        return new BsTextButton {
+            Text = text,
+            OnClick = onClick
+        };
+    }
+
+    private static GameObject CreateLayout(
+        BsTextButton[] buttons,
+        Layout[] rows
+    ) {
+        var buttonRow = new Layout {
+            FlexController = { Gap = 1.pt }
+        };
+
+        var rowList = new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                Gap = 1.pt
+            }
+        };
+
+        foreach (var button in buttons) {
+            buttonRow.Children.Add(button);
+        }
+
+        foreach (var row in rows) {
+            rowList.Children.Add(row);
+        }
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 2.pt
+            },
+
+            Children = {
+                buttonRow,
+                rowList
+            }
+        }.Use();
+    }
+
+    [StateGen]
+    private static Layout CreateRowLayout(string name, IState<float> position) {
+        return new Layout {
+            FlexController = {
+                AlignItems = Align.Center,
+                Gap = 1.pt
+            },
+
+            Children = {
+                new Label {
+                    FlexItem = { Size = new() { x = 22.pt } },
+                    Text = name,
+                    FontSize = 2.6f,
+                    Alignment = TextAlignmentOptions.CaplineRight,
+                    Color = Color.white with { a = 0.6f }
+                },
+
+                new Background {
+                    FlexController = {
+                        AlignItems = Align.Center
+                    },
+
+                    FlexItem = {
+                        Size = new() { x = TrackWidth.pt, y = DotSize.pt }
+                    },
+
+                    Sprite = BeatSaberResources.Sprites.background,
+                    PixelsPerUnit = 10f,
+                    Color = Color.white with { a = 0.06f },
+
+                    Children = {
+                        new Image {
+                            FlexItem = {
+                                PositionType = PositionType.Absolute,
+                                Size = DotSize.pt,
+                                sPosition = position.Map(x => new YogaFrame {
+                                    left = (x * (TrackWidth - DotSize)).pt,
+                                    top = 0.pt
+                                }).In()
+                            },
+
+                            Sprite = GameResources.CircleIcon,
+                            PreserveAspect = true,
+                            Color = new Color(1f, 0.6f, 0.2f)
+                        }
+                    }
+                }
+            }
+        };
+    }
+}
+```
+</Playground>

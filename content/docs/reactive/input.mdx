@@ -1,0 +1,565 @@
+---
+title: "Pointer Events"
+description: "Pointer events, interaction state with GraphicState and ColorSet, holding and dragging, and scrolling."
+---
+
+## Pointer events
+
+Reactive has no input system of its own. Input comes from Unity's event system. The library adds one thing on top: a
+way to attach handlers to a graphic, and a habit of turning what they report into state.
+
+`WithPointerEvents` attaches a handler to any graphic component, meaning anything with an image or text that the event
+system can hit, and calls you back.
+
+<Playground>
+```csharp excerpt
+new Background {
+    Do = x => x.WithPointerEvents(
+        onEnter: _ => hovered.Value = true,
+        onLeave: _ => hovered.Value = false,
+        onDown: _ => clicks.Value++,
+        onScroll: h => value.Value += h.EventData?.scrollDelta.y > 0f ? 1 : -1
+    )
+}
+```
+```csharp
+class PointerEvents : ReactiveComponent {
+    private const int LogSize = 4;
+
+    private readonly record struct Entry(int Number, string Text);
+
+    private State<IReadOnlyList<Entry>> _log = null!;
+    private int _count;
+
+    protected override GameObject Construct() {
+        _log = Remember<IReadOnlyList<Entry>>([]);
+
+        var hovered = Remember(false);
+        var pressed = Remember(false);
+        var dragging = Remember(false);
+
+        var color = RememberDerived(
+            hovered, pressed,
+            (h, p) => p
+                ? new Color(1f, 0.2f, 0.8f, 0.8f)
+                : h
+                    ? new Color(0f, 0.75f, 1f, 0.6f)
+                    : Color.white with { a = 0.1f }
+        );
+
+        var flags = RememberDerived(
+            hovered, pressed, dragging,
+            (h, p, d) =>
+                $"hovered {Mark(h)}   pressed {Mark(p)}   dragging {Mark(d)}"
+        );
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 2.pt
+            },
+
+            Children = {
+                new Background {
+                    FlexController = {
+                        JustifyContent = Justify.Center,
+                        AlignItems = Align.Center
+                    },
+
+                    FlexItem = {
+                        Size = new() { x = 40.pt, y = 11.pt }
+                    },
+
+                    Sprite = BeatSaberResources.Sprites.background,
+                    PixelsPerUnit = 10f,
+                    sColor = color,
+
+                    Do = x => x.WithPointerEvents(
+                        onEnter: _ => Log("enter"),
+                        onLeave: _ => Log("leave"),
+                        onDown: _ => Log("down"),
+                        onUp: _ => Log("up"),
+                        onDragBegin: _ => Log("drag begin"),
+                        onDragEnd: _ => Log("drag end"),
+                        onScroll: h => Log(
+                            $"scroll {h.EventData?.scrollDelta.y:0.0}"
+                        ),
+
+                        // Runs after any of the others: the place to copy the
+                        // handler's flags into states
+                        onUpdate: h => {
+                            hovered.Value = h.IsHovered;
+                            pressed.Value = h.IsPressed;
+                            dragging.Value = h.IsDragging;
+                        }
+                    ),
+
+                    Children = {
+                        new Label {
+                            Text = "Hover, click, drag, scroll",
+                            FontSize = 3.5f
+                        }
+                    }
+                },
+
+                new Label {
+                    FontSize = 3f,
+                    sText = flags
+                },
+
+                new Label {
+                    FontSize = 2.8f,
+                    Color = Color.white with { a = 0.7f },
+                    sText = _log.Map(x => string.Join(
+                        "   ·   ",
+                        x.Select(y => $"{y.Number}. {y.Text}")
+                    ))
+                }
+            }
+        }.Use();
+    }
+
+    private void Log(string text) {
+        var log = _log.Value.Append(new Entry(++_count, text));
+        var overflow = _log.Value.Count + 1 - LogSize;
+        _log.Value = log.Skip(Math.Max(0, overflow)).ToArray();
+    }
+
+    private static string Mark(bool value) => value ? "yes" : "no";
+}
+```
+</Playground>
+
+The callbacks are `onEnter`, `onLeave`, `onDown`, `onUp`, `onDrag`, `onDragBegin`, `onDragEnd`, `onScroll` and
+`onUpdate`, which runs after any of the others. Each one receives the handler. The handler keeps `IsHovered`,
+`IsPressed` and `IsDragging`, and the latest `EventData` from Unity. The `Do = x => ...` is how you call a method on
+the component from inside an initializer.
+
+The handlers above do one thing each: they write a state. An event says that something happened. A state says what
+is true now. Once hover or press is a state, the color, the scale and the text are bindings on it. The handlers stay
+one line each, and adding a second thing that reacts to hovering doesn't touch them.
+
+## Interaction state
+
+Every interactive component in the SDK is built from two types, and so can yours. `GraphicState` is a set of flags,
+`Hovered`, `Active` and `NonInteractable`, with helpers to flip one at a time on a state that holds it. `ColorSet` maps
+every combination of those flags to a color and falls back to the plain `Color` for the combinations you don't set.
+
+<Playground>
+```csharp excerpt
+static readonly ColorSet colors = new() {
+    Color = new Color(1f, 1f, 1f, 0.1f),
+    HoveredColor = new Color(0f, 0.75f, 1f, 0.5f),
+    ActiveColor = new Color(0f, 0.75f, 1f, 0.9f),
+    NotInteractableColor = new Color(1f, 1f, 1f, 0.03f)
+};
+
+var graphic = Remember(GraphicState.None);
+
+new Background {
+    sColor = graphic.Map(x => colors.GetColor(x)),
+
+    Do = x => x.WithPointerEvents(
+        onEnter: _ => graphic.IsHovered = true,
+        onLeave: _ => graphic.IsHovered = false,
+        onDown: _ => graphic.IsActive = true,
+        onUp: _ => graphic.IsActive = false
+    )
+}
+```
+```csharp
+class OwnButton : ReactiveComponent {
+    // One color per state, missing ones fall back to the plain color
+    private static readonly ColorSet backgroundColors = new() {
+        Color = new Color(1f, 1f, 1f, 0.1f),
+        HoveredColor = new Color(0f, 0.75f, 1f, 0.5f),
+        ActiveColor = new Color(0f, 0.75f, 1f, 0.9f),
+        NotInteractableColor = new Color(1f, 1f, 1f, 0.03f)
+    };
+
+    private static readonly ColorSet textColors = new() {
+        Color = Color.white,
+        NotInteractableColor = Color.white with { a = 0.3f }
+    };
+
+    protected override GameObject Construct() {
+        var graphic = Remember(GraphicState.None);
+        var clicks = Remember(0);
+
+        var scale = RememberAnimated(1f, 120.ms, AnimationCurve.EaseOutCubic);
+        graphic.AddCallback(x => scale.TargetValue = x.IsActive ? 0.92f : 1f);
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 3.pt
+            },
+
+            Children = {
+                new Background {
+                    FlexController = {
+                        JustifyContent = Justify.Center,
+                        AlignItems = Align.Center
+                    },
+
+                    FlexItem = {
+                        Size = new() { x = 34.pt, y = 9.pt }
+                    },
+
+                    ContentTransform = {
+                        slocalScale = scale.Map(x => Vector3.one * x)
+                    },
+
+                    Sprite = BeatSaberResources.Sprites.background,
+                    PixelsPerUnit = 10f,
+                    sColor = graphic.Map(x => backgroundColors.GetColor(x)),
+
+                    Do = x => x.WithPointerEvents(
+                        onEnter: _ => graphic.IsHovered = true,
+                        onLeave: _ => graphic.IsHovered = false,
+                        onDown: _ => {
+                            graphic.IsActive = true;
+
+                            if (graphic.IsInteractable) {
+                                clicks.Value++;
+                            }
+                        },
+                        onUp: _ => graphic.IsActive = false
+                    ),
+
+                    Children = {
+                        new Label {
+                            FontSize = 4f,
+                            sText = clicks.Map(x => $"Clicked {x}"),
+                            sColor = graphic.Map(x => textColors.GetColor(x))
+                        }
+                    }
+                },
+
+                new BsToggle {
+                    Toggled = true,
+                    OnToggleStateChanged = x => graphic.IsInteractable = x
+                }.InNamedRail("Interactable"),
+
+                new Label {
+                    FontSize = 3f,
+                    Color = Color.white with { a = 0.6f },
+                    sText = graphic.Map(x =>
+                        $"hovered {x.IsHovered}   active {x.IsActive}   " +
+                        $"interactable {x.IsInteractable}"
+                    )
+                }
+            }
+        }.Use();
+    }
+}
+```
+</Playground>
+
+The pointer events flip flags. The color is the flags passed through the color set. A press scale is an animated
+state that reads the same flags. A label's color is one more `Map`. Making the thing non-interactable is
+`graphic.IsInteractable = false`, and every color set reacts, with no special case in any handler. The SDK's `Colors`
+records are several color sets, one per part of a component. The [SDK overview](/docs/sdk#styling) covers them.
+
+## Input that lasts
+
+Events say when a press starts and ends. Holding and dragging are about what happens in between, and in between is
+time. So the event is stored as state, and `OnUpdate` does the rest.
+
+For a hold, `onDown` sets a pressed state, `onUp` and `onLeave` clear it, and `OnUpdate` fills a progress state while
+it is set and drains it while it is not. When the progress reaches the end, confirm once and wait for a release.
+
+<Playground>
+```csharp excerpt
+new Background {
+    // The events only store whether the button is held
+    Do = x => x.WithPointerEvents(
+        onDown: _ => _pressed.Value = true,
+        onUp: _ => Release(),
+        onLeave: _ => Release()
+    ),
+
+    Children = {
+        // The progress shows as the width of a fill
+        new Background {
+            FlexItem = {
+                sSize = _progress.Map(x => new YogaVector(
+                    (x * Width).pt,
+                    YogaValue.Auto
+                ))
+            }
+        }
+    }
+}
+
+// Everything that takes time happens here
+protected override void OnUpdate() {
+    var holding = _pressed.Value && !_waitingForRelease;
+
+    // Filling takes the hold time, draining is three times faster
+    var step = Time.deltaTime / HoldTime * (holding ? 1f : -3f);
+    _progress.Value = Mathf.Clamp01(_progress.Value + step);
+
+    if (holding && _progress.Value >= 1f) {
+        _confirmed.Value++;
+        _waitingForRelease = true;
+    }
+}
+
+private void Release() {
+    _pressed.Value = false;
+    _waitingForRelease = false;
+}
+```
+```csharp
+class HoldToConfirm : ReactiveComponent {
+    private const float HoldTime = 1.2f;
+    private const float Width = 44f;
+
+    private State<bool> _pressed = null!;
+    private State<float> _progress = null!;
+    private State<int> _confirmed = null!;
+    private bool _waitingForRelease;
+
+    protected override GameObject Construct() {
+        _pressed = Remember(false);
+        _progress = Remember(0f);
+        _confirmed = Remember(0);
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 3.pt
+            },
+
+            Children = {
+                new Background {
+                    FlexController = {
+                        JustifyContent = Justify.Center,
+                        AlignItems = Align.Center
+                    },
+
+                    FlexItem = {
+                        Size = new() { x = Width.pt, y = 9.pt }
+                    },
+
+                    Sprite = BeatSaberResources.Sprites.background,
+                    PixelsPerUnit = 10f,
+                    Color = Color.white with { a = 0.1f },
+
+                    Do = x => x.WithPointerEvents(
+                        onDown: _ => _pressed.Value = true,
+                        onUp: _ => Release(),
+                        onLeave: _ => Release()
+                    ),
+
+                    Children = {
+                        new Background {
+                            FlexItem = {
+                                PositionType = PositionType.Absolute,
+                                Position = new() {
+                                    left = 0.pt,
+                                    top = 0.pt,
+                                    bottom = 0.pt
+                                },
+                                sSize = _progress.Map(x => new YogaVector(
+                                    (x * Width).pt,
+                                    YogaValue.Auto
+                                ))
+                            },
+
+                            Sprite = BeatSaberResources.Sprites.background,
+                            PixelsPerUnit = 10f,
+                            Color = new Color(1f, 0.3f, 0.4f, 0.7f)
+                        },
+
+                        new Label {
+                            FontSize = 3.5f,
+                            sText = _pressed.Map(x => x
+                                ? "Keep holding..."
+                                : "Hold to delete"
+                            )
+                        }
+                    }
+                },
+
+                new Label {
+                    FontSize = 3.2f,
+                    Color = Color.white with { a = 0.6f },
+                    sText = _confirmed.Map(x => x == 0
+                        ? "Nothing deleted yet"
+                        : $"Deleted {x} time{(x == 1 ? "" : "s")}"
+                    )
+                }
+            }
+        }.Use();
+    }
+
+    protected override void OnUpdate() {
+        var holding = _pressed.Value && !_waitingForRelease;
+
+        // Filling takes the hold time, draining is three times faster
+        var step = Time.deltaTime / HoldTime * (holding ? 1f : -3f);
+        _progress.Value = Mathf.Clamp01(_progress.Value + step);
+
+        if (holding && _progress.Value >= 1f) {
+            _confirmed.Value++;
+            _waitingForRelease = true;
+        }
+    }
+
+    private void Release() {
+        _pressed.Value = false;
+        _waitingForRelease = false;
+    }
+}
+```
+</Playground>
+
+For dragging there is one trick. Pointer events on a graphic stop the moment the pointer is over some other graphic.
+A knob dragged off its pad would freeze at the edge. But the `PointerEventData` you were handed on press is the same
+object the input module keeps updating every frame, wherever the pointer goes. Keep it, and read the position from it
+in `OnUpdate`.
+
+```csharp
+private PointerEventData? _press;
+
+Do = x => x.WithPointerEvents(
+    onDown: h => _press = h.EventData,
+    onUp: _ => _press = null
+)
+
+protected override void OnUpdate() {
+    if (_press is { } data) {
+        _position.Value = ToLocal(data.position);
+    }
+}
+```
+
+Bind `sPosition` on an absolutely positioned item to `_position` and it follows the pointer anywhere on the canvas.
+Make `_position` an animated state, set it immediately while dragging, and set its target on release, and it springs
+back on its own. A ghost that sits under the pointer needs `RaycastTarget = false`, or nothing beneath it is ever
+hovered.
+
+Drag and drop between containers rarely needs reparenting. Give each item a state saying which container it is in,
+show it in every container with `sEnabled` bound to that state, and dropping becomes one assignment.
+## Scrolling
+
+`onScroll` gets the wheel delta in `EventData.scrollDelta`. The magnitude varies between mice, so step by its sign.
+
+<Playground>
+```csharp excerpt
+Do = x => x.WithPointerEvents(onScroll: h => {
+    var delta = h.EventData?.scrollDelta.y ?? 0f;
+
+    if (delta != 0f) {
+        value.Value = Mathf.Clamp(
+            value.Value + (delta > 0f ? 1 : -1),
+            Min,
+            Max
+        );
+    }
+})
+```
+```csharp
+class ScrollAdjust : ReactiveComponent {
+    private const int Min = 1;
+    private const int Max = 10;
+
+    protected override GameObject Construct() {
+        var value = Remember(5);
+
+        return new Layout {
+            FlexController = {
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 4.pt
+            },
+
+            Children = {
+                new Background {
+                    FlexController = {
+                        FlexDirection = FlexDirection.Column,
+                        JustifyContent = Justify.Center,
+                        AlignItems = Align.Center
+                    },
+
+                    FlexItem = {
+                        Size = new() { x = 26.pt, y = 20.pt }
+                    },
+
+                    Sprite = BeatSaberResources.Sprites.background,
+                    PixelsPerUnit = 10f,
+                    Color = Color.white with { a = 0.1f },
+
+                    Do = x => x.WithPointerEvents(onScroll: h => {
+                        var delta = h.EventData?.scrollDelta.y ?? 0f;
+
+                        if (delta != 0f) {
+                            value.Value = Mathf.Clamp(
+                                value.Value + (delta > 0f ? 1 : -1),
+                                Min,
+                                Max
+                            );
+                        }
+                    }),
+
+                    Children = {
+                        new Label {
+                            FontSize = 8f,
+                            sText = value.Map(x => x.ToString())
+                        },
+
+                        new Label {
+                            Text = "scroll here",
+                            FontSize = 2.8f,
+                            Color = Color.white with { a = 0.6f }
+                        }
+                    }
+                },
+
+                new Layout {
+                    FlexController = {
+                        JustifyContent = Justify.Center,
+                        AlignItems = Align.Center
+                    },
+
+                    FlexItem = {
+                        Size = (Max * 2.4f).pt
+                    },
+
+                    Children = {
+                        new Background {
+                            FlexItem = {
+                                sSize = value.Map(x =>
+                                    new YogaVector((x * 2.4f).pt)
+                                )
+                            },
+
+                            Sprite = BeatSaberResources.Sprites.background,
+                            PixelsPerUnit = 10f,
+                            sColor = value.Map(x => Color.HSVToRGB(
+                                x / (float)Max * 0.8f,
+                                0.7f,
+                                1f
+                            ))
+                        }
+                    }
+                }
+            }
+        }.Use();
+    }
+}
+```
+</Playground>
+In VR there is no wheel. The joystick only scrolls inside scroll areas, which attach an adapter for it, and a plain
+graphic only hears the mouse. For content that should scroll in the game, use a `ScrollArea`, or a `Table` for long
+lists. Both are driven by a `ScrollContext`, a state that carries the scroll position, the content size and the view
+size, with `ScrollTo`, `PageDown` and the rest on it. See [Repeaters and Tables](/docs/reactive/lists/lists#tables-and-scrolling)
+and [Scroll Areas and Scrollbars](/docs/sdk/scroll-area).

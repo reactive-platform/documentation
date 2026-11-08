@@ -1,0 +1,538 @@
+---
+title: "Animated State"
+description: "States that move towards a target over time, how fast and along what curve, and how to animate any type."
+---
+
+## Animated states
+
+An animated state is a state that moves towards its target instead of jumping to it. Everything bound to it glides,
+and nothing bound to it knows it is animated.
+
+<Playground preview="/assets/animation/animated-state.gif">
+```csharp excerpt
+var color = RememberAnimated(idle, 250.ms, AnimationCurve.EaseOutCubic);
+var scale = RememberAnimated(1f, 300.ms, AnimationCurve.EaseOutBack);
+
+new Background {
+    ContentTransform = {
+        slocalScale = scale.Map(x => Vector3.one * x)
+    },
+
+    sColor = color,
+
+    Do = x => x.WithPointerEvents(
+        onEnter: _ => {
+            color.TargetValue = hovered;
+            scale.TargetValue = 1.15f;
+        },
+        onLeave: _ => {
+            color.TargetValue = idle;
+            scale.TargetValue = 1f;
+        }
+    )
+}
+```
+```csharp
+class HoverCard : ReactiveComponent {
+    protected override GameObject Construct() {
+        var idle = Color.white with { a = 0.12f };
+        var hovered = new Color(0.35f, 0.75f, 1f, 0.5f);
+        var color = RememberAnimated(idle, 250.ms, AnimationCurve.EaseOutCubic);
+        var scale = RememberAnimated(1f, 300.ms, AnimationCurve.EaseOutBack);
+
+        return new Layout {
+            FlexController = {
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center
+            },
+
+            Children = {
+                new Background {
+                    FlexController = {
+                        AlignItems = Align.Center,
+                        JustifyContent = Justify.Center
+                    },
+
+                    FlexItem = {
+                        Size = new() { x = 36.pt, y = 14.pt }
+                    },
+
+                    ContentTransform = {
+                        slocalScale = scale.Map(x => Vector3.one * x)
+                    },
+
+                    Sprite = BeatSaberResources.Sprites.background,
+                    PixelsPerUnit = 10f,
+                    sColor = color,
+
+                    Do = x => x.WithPointerEvents(
+                        onEnter: _ => {
+                            color.TargetValue = hovered;
+                            scale.TargetValue = 1.15f;
+                        },
+                        onLeave: _ => {
+                            color.TargetValue = idle;
+                            scale.TargetValue = 1f;
+                        }
+                    ),
+
+                    Children = {
+                        new Label { Text = "Hover me", FontSize = 4f }
+                    }
+                }
+            }
+        }.Use();
+    }
+}
+```
+</Playground>
+
+
+`RememberAnimated` returns an `AnimatedState<T>`, a state with a current `Value` and a `TargetValue`. Setting the target
+starts an animation from wherever the value currently is, so interrupting an animation halfway is smooth by
+construction. Hover off while the card is still growing and it shrinks from where it got to, not from the full size.
+On every frame in between, the state notifies its readers like any other state. That is why `sColor = color` and
+`slocalScale = scale.Map(...)` are ordinary bindings. Setting the target to the value it already has does nothing, so a
+hover that fires twice doesn't restart anything.
+
+The rest of the API covers the edges. `SetValueImmediate(value)` jumps to a value with no animation. That is what you
+use to pin something to the pointer while dragging, before letting it spring back by setting `TargetValue` on release.
+`IsFinished` says whether the value has arrived. `OnStart` and `OnFinish` are callbacks for either end of an animation.
+`Progress` is the curved progress from 0 to 1, if a reader wants that rather than the value. `Timing` and `Curve` can
+be changed after creation, so a duration can follow a slider.
+
+An animated state has to advance every frame. `RememberAnimated` handles that by binding the state to the calling
+component as a [module](/docs/reactive/components#modules). That one decision gives the right behaviour everywhere
+without any code of yours. The animation advances only while the component is active in the hierarchy, so a hidden
+card doesn't animate and a dismissed screen stops ticking. It stops when the component is destroyed, so nothing keeps
+writing to a dead object. And it runs in `Update`, before the frame delivers states and lays out, so what it changes is
+on screen in the same frame. One consequence is worth remembering. An animated state created in a helper method
+belongs to whatever component called `RememberAnimated`. That has to be the component on screen, or the animation
+never advances. `StateUtils.RememberAnimated(binder, ...)` takes the component explicitly for that case. There are
+overloads for `float`, `Vector2`, `Vector3` and `Color`. Any other type takes an interpolator, described below.
+
+## Timing and curves
+
+The second argument to `RememberAnimated` is an `AnimationTiming`. There are two kinds, for two different jobs.
+
+A **duration**, written `400.ms` or `1.5f.sec`, reaches the target in exactly that time along the curve. Every new
+target restarts the clock. It is clean and predictable for things that happen once: a hover, a panel opening, a toast
+dismissing. Driven by something that changes continuously, like a slider being dragged, it is forever restarting and
+never quite catches up, which looks like lag.
+
+A **factor**, written `8.fact`, closes that share of the remaining gap every second. It is fast when far from the
+target and slow when close, exponential, and independent of frame rate. A new target doesn't restart anything. The
+value heads somewhere else from wherever it is. This is the timing for values that change all the time, such as
+something following a slider, a scroll position, or the pointer, and it is what the drag-pad knob and the SDK's
+smooth scrolling use. A factor has no fixed span to spread a curve over, so it ignores the curve.
+
+<Playground preview="/assets/animation/timing.gif">
+```csharp excerpt
+var timed = RememberAnimated(0f, 400.ms, AnimationCurve.EaseInOutCubic);
+var factored = RememberAnimated(0f, 8.fact);
+
+target.AddCallback(x => {
+    timed.TargetValue = x;
+    factored.TargetValue = x;
+});
+```
+```csharp
+class Timing : ReactiveComponent {
+    private const float TrackWidth = 60f;
+    private const float DotSize = 5f;
+
+    protected override GameObject Construct() {
+        var target = Remember(0f);
+        var timed = RememberAnimated(0f, 400.ms, AnimationCurve.EaseInOutCubic);
+        var factored = RememberAnimated(0f, 8.fact);
+
+        target.AddCallback(x => {
+            timed.TargetValue = x;
+            factored.TargetValue = x;
+        });
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 2.pt
+            },
+
+            Children = {
+                CreateTrack(
+                    name: "400.ms",
+                    progress: timed,
+                    labelWidth: 14f
+                ),
+                CreateTrack(
+                    name: "8.fact",
+                    progress: factored,
+                    labelWidth: 14f
+                ),
+
+                new BsSlider {
+                    FlexItem = {
+                        Size = new() { x = TrackWidth.pt, y = 7.pt },
+                        Margin = new() { top = 2.pt }
+                    },
+
+                    ValueStep = 0.01f,
+                    sValue = target,
+                    OnValueChanged = x => target.Value = x
+                }
+            }
+        }.Use();
+    }
+
+    [StateGen]
+    private static Layout CreateTrack(
+        string name,
+        IState<float> progress,
+        float labelWidth
+    ) {
+        return new Layout {
+            FlexController = {
+                AlignItems = Align.Center,
+                Gap = 2.pt
+            },
+
+            Children = {
+                new Label {
+                    FlexItem = { Size = new() { x = labelWidth.pt } },
+                    Alignment = TextAlignmentOptions.Right,
+                    FontSize = 3.2f,
+                    Text = name,
+                    Color = Color.white with { a = 0.6f }
+                },
+
+                new Background {
+                    FlexController = {
+                        AlignItems = Align.Center
+                    },
+
+                    FlexItem = {
+                        Size = new() { x = TrackWidth.pt, y = DotSize.pt }
+                    },
+
+                    Sprite = BeatSaberResources.Sprites.background,
+                    PixelsPerUnit = 10f,
+                    Color = Color.white with { a = 0.1f },
+
+                    Children = {
+                        new Image {
+                            FlexItem = {
+                                PositionType = PositionType.Absolute,
+                                Size = DotSize.pt,
+                                sPosition = progress.Map(x => new YogaFrame {
+                                    left = (x * (TrackWidth - DotSize)).pt,
+                                    top = 0.pt
+                                }).In()
+                            },
+
+                            Sprite = GameResources.CircleIcon,
+                            PreserveAspect = true,
+                            Color = new Color(0.35f, 0.75f, 1f)
+                        }
+                    }
+                }
+            }
+        };
+    }
+}
+```
+</Playground>
+
+The curve, the optional third argument, decides how a duration's progress is spread over its time. Every dot below
+gets the same target and the same duration. Only the curve differs, so they all arrive together but get there
+differently.
+
+<Playground preview="/assets/animation/curves.gif">
+```csharp excerpt
+(string, AnimationCurve)[] curves = [
+    ("Linear", AnimationCurve.Linear),
+    ("EaseInQuad", AnimationCurve.EaseInQuad),
+    ("EaseOutCubic", AnimationCurve.EaseOutCubic),
+    ("EaseInOutSine", AnimationCurve.EaseInOutSine),
+    ("EaseOutBack", AnimationCurve.EaseOutBack)
+];
+
+foreach (var (name, curve) in curves) {
+    var dot = RememberAnimated(0f, 1000.ms, curve);
+    tracks.Children.Add(CreateTrack(
+        name: name,
+        progress: dot,
+        labelWidth: 22f
+    ));
+}
+```
+```csharp
+class Curves : ReactiveComponent {
+    private const float TrackWidth = 60f;
+    private const float DotSize = 4f;
+
+    private readonly List<AnimatedState<float>> _dots = new();
+
+    protected override GameObject Construct() {
+        (string, AnimationCurve)[] curves = [
+            ("Linear", AnimationCurve.Linear),
+            ("EaseInQuad", AnimationCurve.EaseInQuad),
+            ("EaseOutCubic", AnimationCurve.EaseOutCubic),
+            ("EaseInOutSine", AnimationCurve.EaseInOutSine),
+            ("EaseOutBack", AnimationCurve.EaseOutBack)
+        ];
+
+        var tracks = new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 1.5f.pt
+            }
+        };
+
+        foreach (var (name, curve) in curves) {
+            var dot = RememberAnimated(0f, 1000.ms, curve);
+            _dots.Add(dot);
+            tracks.Children.Add(CreateTrack(
+                name: name,
+                progress: dot,
+                labelWidth: 22f
+            ));
+        }
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 3.pt
+            },
+
+            Children = {
+                tracks,
+
+                new BsTextButton {
+                    Text = "Play",
+                    OnClick = Play
+                }
+            }
+        }.Use();
+    }
+
+    private void Play() {
+        foreach (var dot in _dots) {
+            dot.TargetValue = dot.TargetValue < 0.5f ? 1f : 0f;
+        }
+    }
+
+    [StateGen]
+    private static Layout CreateTrack(
+        string name,
+        IState<float> progress,
+        float labelWidth
+    ) {
+        return new Layout {
+            FlexController = {
+                AlignItems = Align.Center,
+                Gap = 2.pt
+            },
+
+            Children = {
+                new Label {
+                    FlexItem = { Size = new() { x = labelWidth.pt } },
+                    Alignment = TextAlignmentOptions.Right,
+                    FontSize = 3.2f,
+                    Text = name,
+                    Color = Color.white with { a = 0.6f }
+                },
+
+                new Background {
+                    FlexController = {
+                        AlignItems = Align.Center
+                    },
+
+                    FlexItem = {
+                        Size = new() { x = TrackWidth.pt, y = DotSize.pt }
+                    },
+
+                    Sprite = BeatSaberResources.Sprites.background,
+                    PixelsPerUnit = 10f,
+                    Color = Color.white with { a = 0.1f },
+
+                    Children = {
+                        new Image {
+                            FlexItem = {
+                                PositionType = PositionType.Absolute,
+                                Size = DotSize.pt,
+                                sPosition = progress.Map(x => new YogaFrame {
+                                    left = (x * (TrackWidth - DotSize)).pt,
+                                    top = 0.pt
+                                }).In()
+                            },
+
+                            Sprite = GameResources.CircleIcon,
+                            PreserveAspect = true,
+                            Color = new Color(0.35f, 0.75f, 1f)
+                        }
+                    }
+                }
+            }
+        };
+    }
+}
+```
+</Playground>
+
+`AnimationCurve` has the usual presets. `Linear`, `EaseIn`, `EaseOut`, `EaseInOut` and `Exponential` are there, and so
+are the cubic-bezier families with the same names and shapes as on the web, from `EaseInQuad` to `EaseInOutBack`, in
+`Quad`, `Cubic`, `Quint`, `Sine`, `Expo` and `Back` variants. The `Back` curves overshoot and come back, which works
+because interpolation is unclamped. For a curve of your own, subclass `AnimationCurve` and override
+`Evaluate(progress)`, or construct a `BezierCurve` with the four control values a CSS `cubic-bezier` would take.
+
+## Interpolators
+
+How two values are blended is an `IValueInterpolator<T>`, which is a `Lerp(from, to, t)` plus an equality comparer.
+The built-in overloads of `RememberAnimated` pick one for `float`, `Vector2`, `Vector3` and `Color`. The general
+overload takes one explicitly and animates any type you can write a `Lerp` for.
+
+The equality check skips animating to a target you are already at, so a hover that sets the same color twice doesn't
+restart. `t` is the curved progress and can leave the 0 to 1 range on an overshooting curve. A `Lerp` that clamps
+flattens those curves. The built-in interpolators use the unclamped Unity lerps for that reason, and yours should too,
+unless clamping is the point.
+
+Colors are the usual reason to write one. The default interpolates in RGB, which between opposite hues passes
+through a muddy gray in the middle. Walking the hue circle instead keeps the color saturated all the way.
+
+<Playground preview="/assets/animation/interpolators.gif">
+```csharp excerpt
+class HsvInterpolator : IValueInterpolator<Color> {
+    public static readonly HsvInterpolator Instance = new();
+
+    public Color Lerp(Color from, Color to, float t) {
+        Color.RGBToHSV(from, out var h1, out var s1, out var v1);
+        Color.RGBToHSV(to, out var h2, out var s2, out var v2);
+
+        var hueDelta = Mathf.Repeat(h2 - h1 + 0.5f, 1f) - 0.5f;
+
+        return Color.HSVToRGB(
+            Mathf.Repeat(h1 + hueDelta * t, 1f),
+            Mathf.Lerp(s1, s2, t),
+            Mathf.Lerp(v1, v2, t)
+        );
+    }
+
+    public bool Equals(Color x, Color y) => x == y;
+
+    public int GetHashCode(Color obj) => obj.GetHashCode();
+}
+
+var color = RememberAnimated(Color.red, HsvInterpolator.Instance, 600.ms);
+```
+```csharp
+class HsvInterpolator : IValueInterpolator<Color> {
+    public static readonly HsvInterpolator Instance = new();
+
+    public Color Lerp(Color from, Color to, float t) {
+        Color.RGBToHSV(from, out var h1, out var s1, out var v1);
+        Color.RGBToHSV(to, out var h2, out var s2, out var v2);
+
+        var hueDelta = Wrap(h2 - h1 + 0.5f) - 0.5f;
+
+        return Color.HSVToRGB(
+            Wrap(h1 + hueDelta * t),
+            Mathf.Lerp(s1, s2, t),
+            Mathf.Lerp(v1, v2, t)
+        );
+    }
+
+    public bool Equals(Color x, Color y) => x == y;
+
+    public int GetHashCode(Color obj) => obj.GetHashCode();
+
+    // Keeps a hue on the circle, like Mathf.Repeat(x, 1f)
+    private static float Wrap(float x) => x - Mathf.Floor(x);
+}
+
+class Swatches : ReactiveComponent {
+    protected override GameObject Construct() {
+        var rgb = RememberAnimated(Color.red, 600.ms);
+        var hsv = RememberAnimated(Color.red, HsvInterpolator.Instance, 600.ms);
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 3.pt
+            },
+
+            Children = {
+                new Layout {
+                    FlexController = {
+                        Gap = 4.pt
+                    },
+
+                    Children = {
+                        CreateSwatch(
+                            name: "RGB",
+                            color: rgb
+                        ),
+                        CreateSwatch(
+                            name: "HSV",
+                            color: hsv
+                        )
+                    }
+                },
+
+                new BsTextButton {
+                    Text = "Swap",
+                    OnClick = () => {
+                        var target = rgb.TargetValue == Color.red
+                            ? Color.cyan
+                            : Color.red;
+                        rgb.TargetValue = target;
+                        hsv.TargetValue = target;
+                    }
+                }
+            }
+        }.Use();
+    }
+
+    [StateGen]
+    private static Layout CreateSwatch(string name, IState<Color> color) {
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                Gap = 1.pt
+            },
+
+            Children = {
+                new Background {
+                    FlexItem = {
+                        Size = new() { x = 24.pt, y = 14.pt }
+                    },
+
+                    Sprite = BeatSaberResources.Sprites.background,
+                    PixelsPerUnit = 10f,
+                    sColor = color.In()
+                },
+
+                new Label {
+                    Text = name,
+                    FontSize = 3f,
+                    Color = Color.white with { a = 0.6f }
+                }
+            }
+        };
+    }
+}
+```
+</Playground>
+
+
+The `hueDelta` line is the one that matters. It maps the difference into the range from minus half a turn to plus
+half a turn, so the hue always travels the short way round. The same shape animates a `Quaternion` through slerp, a
+`YogaVector` so that a size can animate through `sSize`, or a struct of your own. Keep a static instance, since an
+interpolator has no state, and pass it to `RememberAnimated`.

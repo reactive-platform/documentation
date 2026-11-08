@@ -1,0 +1,375 @@
+---
+title: "Property Bindings"
+description: "The generated s-properties that keep a property in sync with a state, how they're generated, and bindings on nested objects and your own components."
+---
+
+## The s-properties
+
+A binding connects a state to a property. For every property with a setter there is an `s`-prefixed version that
+takes a state instead of a value.
+
+<Playground>
+```csharp excerpt
+var level = Remember(3);
+
+new Label {
+    sText = level.Map(x => $"Level {x}"),
+    sFontSize = level.Map(x => 3f + x * 0.4f),
+    sColor = level.Map(x => Color.Lerp(Color.white, Color.red, x / 10f)),
+    sEnabled = level.Map(x => x >= 8)
+}
+```
+```csharp
+class Levels : ReactiveComponent {
+    protected override GameObject Construct() {
+        var level = Remember(3);
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 3.pt
+            },
+
+            Children = {
+                new Label {
+                    sText = level.Map(x => $"Level {x}"),
+                    sFontSize = level.Map(x => 3f + x * 0.4f),
+                    sColor = level.Map(x =>
+                        Color.Lerp(Color.white, Color.red, x / 10f)
+                    )
+                },
+
+                new Label {
+                    Text = "Almost there!",
+                    FontSize = 3f,
+                    sEnabled = level.Map(x => x >= 8)
+                },
+
+                new BsSlider {
+                    FlexItem = { Size = new() { x = 50.pt, y = 7.pt } },
+                    MinValue = 0f,
+                    MaxValue = 10f,
+                    ValueStep = 1f,
+                    Value = level.Value,
+                    OnValueChanged = x => level.Value = (int)x
+                }
+            }
+        }.Use();
+    }
+}
+```
+</Playground>
+
+Assign a state and the property is set now, and again on every change. This holds for every settable property on
+every component, so there is no list of bindable properties to learn. If you can write `Color = x`, you can write
+`sColor = state`. One state can drive the text, the size, the color and the visibility of several components at once,
+and because they all read the same state, they can never disagree.
+
+A control that both shows a state and changes it needs nothing extra. It reads through the `s`-property and reports
+through its own callback, and you write the callback's value back into the state.
+
+<Playground>
+```csharp excerpt
+var enabled = Remember(true);
+
+new BsToggle {
+    sToggled = enabled,
+    OnToggleStateChanged = x => enabled.Value = x
+},
+
+new BsTextButton {
+    Text = "Flip from code",
+    OnClick = () => enabled.Value = !enabled.Value
+}
+```
+```csharp
+class TwoWay : ReactiveComponent {
+    protected override GameObject Construct() {
+        var enabled = Remember(true);
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 3.pt
+            },
+
+            Children = {
+                new BsToggle {
+                    sToggled = enabled,
+                    OnToggleStateChanged = x => enabled.Value = x
+                }.InNamedRail("Enabled"),
+
+                new BsTextButton {
+                    Text = "Flip from code",
+                    OnClick = () => enabled.Value = !enabled.Value
+                },
+
+                new Label {
+                    FontSize = 3f,
+                    Color = Color.white with { a = 0.6f },
+                    sText = enabled.Map(x => x
+                        ? "enabled is true"
+                        : "enabled is false"
+                    )
+                }
+            }
+        }.Use();
+    }
+}
+```
+</Playground>
+
+Flip `enabled` from the button and the toggle moves, because it reads the state like everything else. There is one
+copy of the value, so nothing can get out of sync. Writing a state the value it already has is a no-op, so the toggle's
+own write-back doesn't cause a second notification.
+
+## How bindings are generated
+
+The `s`-properties are not in the library. `Reactive.Compiler`, a Roslyn source generator referenced by the project,
+writes them while you type. When it sees `sText = something` in an object initializer of a `Label`, and `sText` is not
+a real member, it finds the `Text` property on `Label` and generates an extension property that subscribes the state
+to it.
+
+Two practical consequences follow from the generator working from usage. First, it only looks inside members marked
+`[StateGen]`. `Construct` carries the attribute and overrides inherit it, so inside `Construct` you never think about
+it. A helper method that builds part of a tree needs the attribute itself, or the binding it uses will not exist.
+
+```csharp
+[StateGen]
+private static Label CreateLine(IState<string> text) {
+    return new Label {
+        sText = text.In()
+    };
+}
+```
+
+Second, the `.In()`. An `s`-property accepts a state through an implicit conversion, and C# does not apply a
+user-defined conversion from an interface type. A `State<T>`, a mapped state or an animated state assigns directly.
+Anything typed as `IState<T>`, which includes every method parameter and most fields, is wrapped with `.In()`.
+`.InLazy()` is the same without the initial apply, for a property that should only follow changes and keep its
+current value until the first one. Using a binding somewhere that doesn't generate it, for instance assigning `sText`
+outside an initializer, is reported as `RV006`. Such code only compiles because some other usage happened to generate
+the same property.
+
+The generator can be steered, though you will rarely need to. `[StateGen(Patterns = ["state_{}", "st{}"])]` changes
+the naming from `s{}`, where `{}` stands for the property name. `[StateGen(Enabled = false)]` turns generation off
+for an override. In Debug builds the generator also pre-generates a binding for every settable property of every type
+you initialize, so completion can suggest `sText` before you have typed it. The `CompilerVisibleProperty` line in the
+project file exists for that. Release builds generate only what is used.
+
+## Nested objects and your own components
+
+Bindings work at any depth of an initializer, not only on the component itself. `FlexItem`, `FlexController` and
+`ContentTransform` are objects of their own with settable properties, so their properties get `s`-versions too.
+
+<Playground>
+```csharp excerpt
+new Background {
+    FlexItem = {
+        sSize = amount.Map(x => new YogaVector((6f + x * 14f).pt))
+    },
+
+    FlexController = {
+        sGap = amount.Map(x => new YogaVector((x * 8f).pt))
+    },
+
+    ContentTransform = {
+        slocalEulerAngles = amount.Map(x => new Vector3(0f, 0f, x * 90f))
+    }
+}
+```
+```csharp
+class Nested : ReactiveComponent {
+    protected override GameObject Construct() {
+        var amount = Remember(0.3f);
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 6.pt
+            },
+
+            Children = {
+                new Background {
+                    FlexItem = {
+                        sSize = amount.Map(x =>
+                            new YogaVector((6f + x * 14f).pt)
+                        )
+                    },
+
+                    FlexController = {
+                        AlignItems = Align.Center,
+                        JustifyContent = Justify.Center,
+                        sGap = amount.Map(x => new YogaVector((x * 8f).pt))
+                    },
+
+                    ContentTransform = {
+                        slocalEulerAngles = amount.Map(x =>
+                            new Vector3(0f, 0f, x * 90f)
+                        )
+                    },
+
+                    Sprite = BeatSaberResources.Sprites.background,
+                    PixelsPerUnit = 10f,
+                    Color = Color.white with { a = 0.15f },
+
+                    Children = {
+                        CreateDot(),
+                        CreateDot()
+                    }
+                },
+
+                new BsSlider {
+                    FlexItem = { Size = new() { x = 50.pt, y = 7.pt } },
+                    ValueStep = 0.01f,
+                    Value = amount.Value,
+                    OnValueChanged = x => amount.Value = x
+                }
+            }
+        }.Use();
+    }
+
+    private static Image CreateDot() {
+        return new Image {
+            FlexItem = { Size = 3.pt },
+            Sprite = GameResources.CircleIcon,
+            PreserveAspect = true,
+            Color = new Color(0.35f, 0.75f, 1f)
+        };
+    }
+}
+```
+</Playground>
+
+`ContentTransform` is a plain `RectTransform`, so this is not limited to Reactive's types. Any object you can
+initialize that has settable properties gets bindings. The lifetime overload is chosen by what the object is. A Unity
+object is checked for destruction, and a plain object like a modifier is held weakly.
+
+The same is true of components you write, with no attribute to add and no interface to implement. Give a component
+a `Value` property and `sValue` exists.
+
+<Playground>
+```csharp excerpt
+class Meter : ReactiveComponent {
+    public float Value {
+        get => _value.Value;
+        set => _value.Value = Mathf.Clamp01(value);
+    }
+
+    private State<float> _value = null!;
+
+    protected override GameObject Construct() {
+        _value = Remember(0f);
+
+        return new Background {
+            FlexController = {
+                AlignItems = Align.Stretch
+            },
+
+            FlexItem = {
+                Size = new() { x = 40.pt, y = 4.pt }
+            },
+
+            Children = {
+                new Background {
+                    FlexItem = {
+                        sSize = _value.Map(x =>
+                            new YogaVector((x * 40f).pt, 100.pct)
+                        )
+                    }
+                }
+            }
+        }.Use();
+    }
+}
+
+// We can use sValue without explicitly defining it
+new Meter { sValue = level };
+new Meter { sValue = level.Map(x => 1f - x) };
+new Meter { Value = 0.3f };
+```
+```csharp
+class Meter : ReactiveComponent {
+    public float Value {
+        get => _value.Value;
+        set => _value.Value = Mathf.Clamp01(value);
+    }
+
+    private State<float> _value = null!;
+
+    protected override GameObject Construct() {
+        _value = Remember(0f);
+
+        return new Background {
+            FlexController = {
+                AlignItems = Align.Stretch
+            },
+
+            FlexItem = {
+                Size = new() { x = 40.pt, y = 4.pt }
+            },
+
+            Sprite = BeatSaberResources.Sprites.background,
+            PixelsPerUnit = 10f,
+            Color = Color.white with { a = 0.12f },
+
+            Children = {
+                new Background {
+                    FlexItem = {
+                        sSize = _value.Map(x =>
+                            new YogaVector((x * 40f).pt, 100.pct)
+                        )
+                    },
+
+                    Sprite = BeatSaberResources.Sprites.background,
+                    PixelsPerUnit = 10f,
+                    Color = new Color(0.35f, 0.75f, 1f)
+                }
+            }
+        }.Use();
+    }
+}
+
+class Meters : ReactiveComponent {
+    protected override GameObject Construct() {
+        var level = Remember(0.6f);
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 2.pt
+            },
+
+            Children = {
+                // sValue exists without Meter declaring it
+                new Meter { sValue = level },
+                new Meter { sValue = level.Map(x => 1f - x) },
+                new Meter { Value = 0.3f },
+
+                new BsSlider {
+                    FlexItem = {
+                        Size = new() { x = 50.pt, y = 7.pt },
+                        Margin = new() { top = 2.pt }
+                    },
+                    ValueStep = 0.01f,
+                    Value = level.Value,
+                    OnValueChanged = x => level.Value = x
+                }
+            }
+        }.Use();
+    }
+}
+```
+</Playground>
+
+The binding is generated into the assembly that uses it, so the property, its type and the component have to be
+visible from there. A property with a private setter, an `init` setter, or an internal component in another assembly
+gets no binding. Static properties and indexers are skipped as well.

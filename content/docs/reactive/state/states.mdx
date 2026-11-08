@@ -1,0 +1,181 @@
+---
+title: "States"
+description: "What a state is, how it's read and written, callbacks and their lifetime, and how changes reach readers."
+---
+
+## States
+
+A state is a value that tells its readers when it changes. Everything reactive in the library is built on that one
+object. Bindings subscribe to states. Derived states subscribe to states. Animated states *are* states, and so are
+the contexts that lists and scroll areas hand around.
+
+<Playground showCode>
+```csharp
+class Counter : ReactiveComponent {
+    protected override GameObject Construct() {
+        var count = Remember(0);
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 2.pt
+            },
+
+            Children = {
+                new Label {
+                    FontSize = 9f,
+                    sText = count.Map(x => x.ToString())
+                },
+
+                new BsTextButton {
+                    Text = "+1",
+                    OnClick = () => count.Value++
+                }
+            }
+        }.Use();
+    }
+}
+```
+</Playground>
+
+`Remember` returns a `State<T>`. It has a `Value` you read and write, and an implicit conversion to `T` for the places
+where `.Value` is noise. Reading is always current: `Value` returns what was last written, even before anyone has
+been told about it. Writing notifies the readers, unless the new value equals the current one. In that case nothing
+happens at all. The comparison is `EqualityComparer<T>.Default`, so it is reference equality for a class and
+structural equality for a record.
+
+<Alert>
+    When you have mutated an object in place and want readers to see it anyway, `EnforceInvalidation()` notifies without
+    comparing.
+</Alert>
+
+A view reads a state through a binding, the `s`-prefixed property that keeps a property in sync with it.
+[Property Bindings](/docs/reactive/state/bindings) is about those. Code that wants to *do* something when a state
+changes uses a callback, described below.
+
+## Callbacks
+
+A callback runs code when a state changes.
+
+```csharp
+count.AddCallback(x => Debug.Log(x));
+count.AddCallback(x => Debug.Log(x), lazy: true);
+```
+
+The first form runs once immediately with the current value and then on every change. That is usually what you want,
+because whatever the callback does to apply a value gets done for the initial value too. `lazy: true` skips the first
+call. Use it for callbacks that are about changes rather than values, like a log, a sound or an animation trigger.
+
+<Playground showCode>
+```csharp
+class Callbacks : ReactiveComponent {
+    protected override GameObject Construct() {
+        var value = Remember(0);
+        var eagerRuns = Remember(0);
+        var lazyRuns = Remember(0);
+
+        value.AddCallback(_ => eagerRuns.Value++);
+        value.AddCallback(_ => lazyRuns.Value++, lazy: true);
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 2.pt
+            },
+
+            Children = {
+                new Label { sText = eagerRuns.Map(x => $"eager runs: {x}") },
+                new Label { sText = lazyRuns.Map(x => $"lazy runs: {x}") },
+
+                new BsTextButton {
+                    Text = "Change the value",
+                    OnClick = () => value.Value++
+                }
+            }
+        }.Use();
+    }
+}
+```
+</Playground>
+
+`AddCallback` returns a `StateSubscription`, and `RemoveCallback()` on it stops listening. The plain form above lives
+until you remove it. That is fine when the state and the subscriber die together, which is the case for a state the
+component created for its own tree. It is a leak when the state outlives the subscriber. A settings state in a
+service, read by a screen that is opened and closed many times, keeps every closed screen's callbacks alive, and the
+screens with them. For a shared state, use the overloads that take the subscriber:
+
+```csharp
+settings.Volume.AddCallback(this, (self, x) => self._slider.Value = x);
+settings.Theme.AddCallbackUnity(image, (img, x) => img.color = x);
+settings.Width.AddCallbackWeak(modifier, (mod, x) => mod.Size = x);
+```
+
+`AddCallback(target, ...)` takes any `ILifetimeProvider`, which every component is. It checks `IsAlive` each time
+the state notifies and removes the subscription once the target is dead. `AddCallbackUnity` does the same for a Unity
+object by checking that it hasn't been destroyed. `AddCallbackWeak` holds the target through a `WeakReference`, for
+objects with no lifetime of their own, like a layout modifier. In all three the lambda receives the target as a
+parameter instead of capturing it. That is deliberate. A captured `this` would keep the component alive through the
+closure, and the liveness check could never fail. Generated bindings use these overloads and pick the right one for
+the property's owner. That is the reason a bound label never leaks.
+
+## How changes are delivered
+
+Setting a state does two things, at two different times. Most questions about states come down to this.
+
+The first thing is immediate. The state walks everything derived from it, `Map`, `Where` and `RememberDerived`, and
+marks it stale. No functions run. A derived state only notes that its cached value is no good and recomputes on the
+next read. The second thing is deferred. Every state that has callbacks and has changed is queued, and the queue is
+drained once per frame, after `LateUpdate` and right before the UI is drawn. That is when callbacks run, each once,
+with the state's value at that moment. Bindings are callbacks, so that is also when properties are set and the screen
+changes.
+
+The consequences are what make states cheap. Ten writes to a state in one frame are one delivery with the final
+value, so a state written every frame by an animation costs one callback per frame, and a loop that updates a state a
+thousand times costs the same as a single assignment. A derived state whose inputs both changed is computed once,
+with both new values. It can never see one input updated and the other not, because nothing is computed until
+delivery, and by then both writes have landed. A change that reaches a state along two paths is delivered once. And
+nothing is delivered to a state nobody listens to, so a state that is only ever read through `Value` has no per-frame
+cost.
+
+<Playground showCode>
+```csharp
+class Batching : ReactiveComponent {
+    protected override GameObject Construct() {
+        var count = Remember(0);
+        var deliveries = Remember(0);
+
+        count.AddCallback(_ => deliveries.Value++, lazy: true);
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 2.pt
+            },
+
+            Children = {
+                new Label { sText = count.Map(x => x.ToString()) },
+                new Label { sText = deliveries.Map(x => $"{x} deliveries") },
+
+                new BsTextButton {
+                    Text = "Write 1000 times",
+                    OnClick = () => {
+                        for (var i = 0; i < 1000; i++) count.Value++;
+                    }
+                }
+            }
+        }.Use();
+    }
+}
+```
+</Playground>
+
+<Alert>
+    Callbacks may write states. A callback that does so is delivered in the same pass, so a cascade settles within the
+    frame and the screen never shows an intermediate step.
+</Alert>

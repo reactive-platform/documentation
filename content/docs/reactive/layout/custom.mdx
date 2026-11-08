@@ -1,0 +1,989 @@
+---
+title: "Your own Layout Controller"
+description: "Controllers that aren't flexbox, how they sit inside flexbox and flexbox inside them, and how to write one."
+---
+
+## A different tree
+
+`FlexController` is a shorthand for `LayoutController = new YogaLayoutController()`. `LayoutController` accepts any
+`ILayoutController`, and a container with a different one lays out its children by whatever rules that controller
+has. Most mods never need this. It exists for the ring of buttons, the radial menu, or the grid with its own packing.
+
+Directly nested flex layouts share one Yoga tree. A controller of another kind can't join it, so it forms a tree of
+its own, and the two trees meet through measuring. To the flex parent, the subtree is a single leaf. The parent
+measures it when its size isn't fixed, and when the parent hands it a size, the subtree lays itself out within it.
+
+The showcase's *Custom layout controllers* example does both on one screen. The panel on the left is three flex
+layouts stitched into one tree. The ring on the right is a `Layout` whose controller is a `RadialLayoutController`,
+a separate tree that the flex parent sizes as one box. The slider changes the radius, the controller raises
+`LayoutControllerUpdatedEvent`, and the ring is recalculated while nothing around it moves.
+
+<Playground preview="/assets/layout/radial-showcase.gif">
+```csharp excerpt
+var radius = Remember(10f);
+var controller = new RadialLayoutController();
+
+radius.AddCallback(x => controller.Radius = x);
+
+var ring = new Layout {
+    LayoutController = controller,
+
+    FlexItem = {
+        sSize = radius.Map(x => new YogaVector((x * 2f + 6f).pt))
+    },
+
+    Children = {
+        new Label { Text = "1" },
+        new Label { Text = "2" },
+        ...
+    }
+};
+```
+```csharp
+class RadialDemo : ReactiveComponent {
+    private const int ItemCount = 8;
+
+    protected override GameObject Construct() {
+        var radius = Remember(10f);
+        var controller = new RadialLayoutController();
+
+        radius.AddCallback(x => controller.Radius = x);
+
+        var ring = new Layout {
+            LayoutController = controller,
+
+            FlexItem = {
+                sSize = radius.Map(x => new YogaVector(RingSize(x).pt))
+            }
+        };
+
+        for (var i = 0; i < ItemCount; i++) {
+            ring.Children.Add(CreateNumber(i));
+        }
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 2.pt
+            },
+
+            Children = {
+                new BsSlider {
+                    FlexItem = { Size = new() { x = 50.pt, y = 7.pt } },
+                    MinValue = 6f,
+                    MaxValue = 11f,
+                    ValueStep = 1f,
+                    Value = radius.Value,
+                    ValueFormatter = x => $"radius {x:0}",
+                    OnValueChanged = x => radius.Value = x
+                },
+
+                new Layout {
+                    FlexController = {
+                        AlignItems = Align.FlexStart,
+                        Gap = 4.pt
+                    },
+
+                    Children = {
+                        // Three nested flex layouts, stitched into one tree
+                        CreatePanel(
+                            caption: "Stitched flex",
+                            content: new Layout {
+                                FlexController = {
+                                    FlexDirection = FlexDirection.Column,
+                                    Gap = 1.pt
+                                },
+
+                                Children = {
+                                    CreateRow(new Color(0f, 0.75f, 1f)),
+                                    CreateRow(new Color(1f, 0.2f, 0.8f)),
+                                    CreateRow(new Color(1f, 0.8f, 0.2f))
+                                }
+                            }
+                        ),
+
+                        // A separate tree in a slot that fits the largest
+                        // ring, so nothing around it moves
+                        CreatePanel(
+                            caption: "Custom controller",
+                            content: new Layout {
+                                FlexController = {
+                                    JustifyContent = Justify.Center,
+                                    AlignItems = Align.Center
+                                },
+
+                                FlexItem = {
+                                    Size = RingSize(11f).pt
+                                },
+
+                                Children = {
+                                    ring
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }.Use();
+    }
+
+    private static float RingSize(float radius) => radius * 2f + 6f;
+
+    private static Label CreateNumber(int index) {
+        return new Label {
+            Text = (index + 1).ToString(),
+            FontSize = 4f,
+            Color = Color.HSVToRGB(index / (float)ItemCount, 0.6f, 1f)
+        };
+    }
+
+    private static Layout CreatePanel(string caption, ILayoutItem content) {
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                Gap = 1.5f.pt
+            },
+
+            Children = {
+                new Label {
+                    Text = caption,
+                    FontSize = 3.2f,
+                    FontStyle = FontStyles.Bold,
+                    Color = Color.white with { a = 0.7f }
+                },
+
+                content
+            }
+        };
+    }
+
+    private static Layout CreateRow(Color color) {
+        return new Layout {
+            FlexController = {
+                Gap = 1.pt
+            },
+
+            Children = {
+                CreateBlock(
+                    color: color,
+                    width: 4f
+                ),
+                CreateBlock(
+                    color: color,
+                    width: 8f
+                ),
+                CreateBlock(
+                    color: color,
+                    width: 4f
+                )
+            }
+        };
+    }
+
+    private static Background CreateBlock(Color color, float width) {
+        return new Background {
+            FlexItem = {
+                Size = new() { x = width.pt, y = 4.pt }
+            },
+
+            Sprite = BeatSaberResources.Sprites.background,
+            PixelsPerUnit = 10f,
+            Color = color
+        };
+    }
+}
+```
+
+```csharp title="RadialLayoutController.cs"
+class RadialLayoutController : ILayoutController {
+    public float Radius {
+        get => _radius;
+        set {
+            _radius = value;
+            LayoutControllerUpdatedEvent?.Invoke();
+        }
+    }
+
+    public int ChildCount => _children.Count;
+
+    public event Action? LayoutControllerUpdatedEvent;
+
+    private readonly List<ILayoutItem> _children = new();
+    private readonly List<LayoutDimensions> _dimensions = new();
+    private float _radius = 10f;
+    private Vector2 _size;
+
+    // No context type, so a parent never stitches this controller into its
+    // tree and measures it instead
+    public Type? ContextType => null;
+    public object CreateContext() => new object();
+    public void ProvideContext(object? context) { }
+
+    public void InsertChild(ILayoutItem child, int index) {
+        _children.Insert(index, child);
+        LayoutControllerUpdatedEvent?.Invoke();
+    }
+
+    public void RemoveChild(ILayoutItem child) {
+        _children.RemoveAll(x => x.EqualsToLayoutItem(child));
+        LayoutControllerUpdatedEvent?.Invoke();
+    }
+
+    public void RemoveAllChildren() {
+        _children.Clear();
+        LayoutControllerUpdatedEvent?.Invoke();
+    }
+
+    public bool HasChild(ILayoutItem child) => _children.Exists(
+        x => x.EqualsToLayoutItem(child)
+    );
+    public void UpdateChild(ILayoutItem item) { }
+    public void UpdateSelf(ILayoutItem item) { }
+
+    public void Recalculate(Vector2 constraints) {
+        _dimensions.Clear();
+
+        var largest = Vector2.zero;
+        var sizes = new Vector2[_children.Count];
+
+        for (var i = 0; i < _children.Count; i++) {
+            sizes[i] = _children[i].Measure(
+                width: float.NaN,
+                widthMode: MeasureMode.Undefined,
+                height: float.NaN,
+                heightMode: MeasureMode.Undefined
+            );
+            largest = new Vector2(
+                Mathf.Max(largest.x, sizes[i].x),
+                Mathf.Max(largest.y, sizes[i].y)
+            );
+        }
+
+        var preferred = Vector2.one * (_radius * 2f) + largest;
+        _size = constraints.x > 0f && constraints.y > 0f
+            ? constraints
+            : preferred;
+
+        var center = _size / 2f;
+
+        for (var i = 0; i < _children.Count; i++) {
+            var turn = i / (float)_children.Count;
+            var angle = turn * Mathf.PI * 2f - Mathf.PI / 2f;
+            var direction = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+            var position = center + direction * _radius;
+            var size = sizes[i];
+
+            _dimensions.Add(new LayoutDimensions(
+                TopOffset: position.y - size.y / 2f,
+                LeftOffset: position.x - size.x / 2f,
+                Width: size.x,
+                Height: size.y
+            ));
+        }
+    }
+
+    public LayoutDimensions GetSelfDimensions() {
+        return new LayoutDimensions(0f, 0f, _size.x, _size.y);
+    }
+
+    public LayoutDimensions GetChildDimensions(ILayoutItem child) {
+        var index = _children.FindIndex(x => x.EqualsToLayoutItem(child));
+        return index >= 0 && index < _dimensions.Count
+            ? _dimensions[index]
+            : default;
+    }
+
+    // How the flex parent asks this tree for its size when it isn't fixed
+    public Vector2 Measure(
+        float width,
+        MeasureMode widthMode,
+        float height,
+        MeasureMode heightMode
+    ) {
+        Recalculate(Vector2.zero);
+        return LayoutTool.MeasureNode(
+            preferredSize: _size,
+            width: width,
+            widthMode: widthMode,
+            height: height,
+            heightMode: heightMode
+        );
+    }
+}
+```
+</Playground>
+
+
+The ring is still a flex item inside its parent. Only its children are placed radially. The whole example, with the
+controller below, is in
+[LayoutStitchingExample.cs](https://github.com/reactive-platform/reactive-showcase/blob/master/ReactiveShowcase/ReactiveShowcase/Menu/Examples/Samples/Layout/LayoutStitchingExample.cs)
+in the showcase repository, and in the game under Layout.
+
+## The controller
+
+A controller implements `ILayoutController`. This is the showcase's radial one in full. It places its children on a
+circle around the center of whatever box it is given.
+
+```csharp
+class RadialLayoutController : ILayoutController {
+    public float Radius {
+        get => _radius;
+        set {
+            _radius = value;
+            LayoutControllerUpdatedEvent?.Invoke();
+        }
+    }
+
+    public int ChildCount => _children.Count;
+
+    public event Action? LayoutControllerUpdatedEvent;
+
+    private readonly List<ILayoutItem> _children = new();
+    private readonly List<LayoutDimensions> _dimensions = new();
+    private float _radius = 10f;
+    private Vector2 _size;
+
+    // No context type, so a parent never stitches this controller into its
+    // tree and measures it instead
+    public Type? ContextType => null;
+    public object CreateContext() => new object();
+    public void ProvideContext(object? context) { }
+
+    public void InsertChild(ILayoutItem child, int index) {
+        _children.Insert(index, child);
+        LayoutControllerUpdatedEvent?.Invoke();
+    }
+
+    public void RemoveChild(ILayoutItem child) {
+        _children.RemoveAll(x => x.EqualsToLayoutItem(child));
+        LayoutControllerUpdatedEvent?.Invoke();
+    }
+
+    public void RemoveAllChildren() {
+        _children.Clear();
+        LayoutControllerUpdatedEvent?.Invoke();
+    }
+
+    public bool HasChild(ILayoutItem child) => _children.Exists(
+        x => x.EqualsToLayoutItem(child)
+    );
+    public void UpdateChild(ILayoutItem item) { }
+    public void UpdateSelf(ILayoutItem item) { }
+
+    public void Recalculate(Vector2 constraints) {
+        _dimensions.Clear();
+
+        var largest = Vector2.zero;
+        var sizes = new Vector2[_children.Count];
+
+        for (var i = 0; i < _children.Count; i++) {
+            sizes[i] = _children[i].Measure(
+                width: float.NaN,
+                widthMode: MeasureMode.Undefined,
+                height: float.NaN,
+                heightMode: MeasureMode.Undefined
+            );
+            largest = new Vector2(
+                Mathf.Max(largest.x, sizes[i].x),
+                Mathf.Max(largest.y, sizes[i].y)
+            );
+        }
+
+        var preferred = Vector2.one * (_radius * 2f) + largest;
+        _size = constraints.x > 0f && constraints.y > 0f
+            ? constraints
+            : preferred;
+
+        var center = _size / 2f;
+
+        for (var i = 0; i < _children.Count; i++) {
+            var turn = i / (float)_children.Count;
+            var angle = turn * Mathf.PI * 2f - Mathf.PI / 2f;
+            var direction = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+            var position = center + direction * _radius;
+            var size = sizes[i];
+
+            _dimensions.Add(new LayoutDimensions(
+                TopOffset: position.y - size.y / 2f,
+                LeftOffset: position.x - size.x / 2f,
+                Width: size.x,
+                Height: size.y
+            ));
+        }
+    }
+
+    public LayoutDimensions GetSelfDimensions() {
+        return new LayoutDimensions(0f, 0f, _size.x, _size.y);
+    }
+
+    public LayoutDimensions GetChildDimensions(ILayoutItem child) {
+        var index = _children.FindIndex(x => x.EqualsToLayoutItem(child));
+        return index >= 0 && index < _dimensions.Count
+            ? _dimensions[index]
+            : default;
+    }
+
+    // How the flex parent asks this tree for its size when it isn't fixed
+    public Vector2 Measure(
+        float width,
+        MeasureMode widthMode,
+        float height,
+        MeasureMode heightMode
+    ) {
+        Recalculate(Vector2.zero);
+        return LayoutTool.MeasureNode(
+            preferredSize: _size,
+            width: width,
+            widthMode: widthMode,
+            height: height,
+            heightMode: heightMode
+        );
+    }
+}
+```
+
+The pieces, in the order they matter. `LayoutControllerUpdatedEvent` is how the controller asks for a
+recalculation. The container listens to it, so raise it whenever a property changes the result, and when children
+come and go. `InsertChild`, `RemoveChild` and the rest are bookkeeping. Compare items with `EqualsToLayoutItem`
+rather than by reference, because a component and its host are the same item. `Recalculate` only computes. It
+measures the children, decides their dimensions and its own size, and the container applies them afterwards by
+asking `GetSelfDimensions` and `GetChildDimensions`. `Measure` is what a flex parent calls when this tree's size isn't
+fixed. A `ContextType` of `null` means a parent never tries to stitch this controller and measures it instead.
+`YogaLayoutController` returns a context type so that flex controllers can share a tree, and
+[Layout Engine Internals](/docs/reactive/under-the-hood/layout#stitching) explains that mechanism if you want
+controllers of your own kind to stitch too.
+
+Measuring a child with `MeasureMode.Undefined` asks for its natural size. `Exactly` and `AtMost` constrain it.
+`LayoutTool.MeasureNode` applies the modes to a preferred size, and `LayoutTool.FitPreservingAspect` scales one while
+keeping its aspect ratio.
+
+## Inside flexbox
+
+The showcase gives the ring a fixed `Size`, so the flex parent never has to ask how big it is. Leave the size out and
+the parent measures the ring instead, through the controller's `Measure`. That call recalculates with no constraints,
+so the ring reports its preferred size, twice the radius plus the largest child. The parent then lays out the row
+with that size, hands the ring its final box, and the ring recalculates once more inside it.
+
+<Playground preview="/assets/layout/radial-in-flex.gif">
+```csharp excerpt
+new Layout {
+    FlexController = {
+        AlignItems = Align.Center,
+        Gap = 3.pt
+    },
+
+    Children = {
+        CreateBlock(),
+
+        new Background {
+            LayoutController = new RadialLayoutController { Radius = 8f },
+
+            Children = { ... }
+        },
+
+        CreateBlock()
+    }
+}
+```
+```csharp
+class RingsInRow : ReactiveComponent {
+    private static readonly (float radius, int items)[] Rings = {
+        (5f, 3),
+        (8f, 6),
+        (11f, 8)
+    };
+
+    private Layout _rings = null!;
+    private readonly List<Background> _added = new();
+
+    protected override GameObject Construct() {
+        var row = new Layout {
+            FlexController = {
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 3.pt
+            },
+
+            Children = {
+                CreateBlock(new Color(0f, 0.75f, 1f)),
+
+                new Layout {
+                    FlexController = {
+                        AlignItems = Align.Center,
+                        Gap = 3.pt
+                    }
+                }.Bind(ref _rings),
+
+                CreateBlock(new Color(1f, 0.2f, 0.8f))
+            }
+        };
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 4.pt
+            },
+
+            Children = {
+                row,
+
+                new Layout {
+                    FlexController = {
+                        Gap = 2.pt
+                    },
+
+                    Children = {
+                        new BsTextButton {
+                            Text = "Add a ring",
+                            OnClick = AddRing
+                        },
+                        new BsTextButton {
+                            Text = "Remove",
+                            OnClick = RemoveRing
+                        }
+                    }
+                }
+            }
+        }.Use();
+    }
+
+    private void AddRing() {
+        if (_added.Count == Rings.Length) return;
+
+        var (radius, items) = Rings[_added.Count];
+
+        // No size of its own: the row measures the ring through its controller
+        var ring = new Background {
+            LayoutController = new RadialLayoutController { Radius = radius },
+
+            Sprite = BeatSaberResources.Sprites.background,
+            PixelsPerUnit = 10f,
+            Color = Color.white with { a = 0.1f }
+        };
+
+        for (var i = 0; i < items; i++) {
+            ring.Children.Add(new Label {
+                Text = (i + 1).ToString(),
+                FontSize = 4f,
+                Color = Color.HSVToRGB(i / (float)items, 0.6f, 1f)
+            });
+        }
+
+        _added.Add(ring);
+        _rings.Children.Add(ring);
+    }
+
+    private void RemoveRing() {
+        if (_added.Count == 0) return;
+
+        var last = _added[^1];
+        _added.RemoveAt(_added.Count - 1);
+        _rings.Children.Remove(last);
+        last.Destroy();
+    }
+
+    private static Background CreateBlock(Color color) {
+        return new Background {
+            FlexItem = {
+                Size = 12.pt
+            },
+
+            Sprite = BeatSaberResources.Sprites.background,
+            PixelsPerUnit = 10f,
+            Color = color
+        };
+    }
+}
+```
+
+```csharp title="RadialLayoutController.cs"
+class RadialLayoutController : ILayoutController {
+    public float Radius {
+        get => _radius;
+        set {
+            _radius = value;
+            LayoutControllerUpdatedEvent?.Invoke();
+        }
+    }
+
+    public int ChildCount => _children.Count;
+
+    public event Action? LayoutControllerUpdatedEvent;
+
+    private readonly List<ILayoutItem> _children = new();
+    private readonly List<LayoutDimensions> _dimensions = new();
+    private float _radius = 10f;
+    private Vector2 _size;
+
+    // No context type, so a parent never stitches this controller into its
+    // tree and measures it instead
+    public Type? ContextType => null;
+    public object CreateContext() => new object();
+    public void ProvideContext(object? context) { }
+
+    public void InsertChild(ILayoutItem child, int index) {
+        _children.Insert(index, child);
+        LayoutControllerUpdatedEvent?.Invoke();
+    }
+
+    public void RemoveChild(ILayoutItem child) {
+        _children.RemoveAll(x => x.EqualsToLayoutItem(child));
+        LayoutControllerUpdatedEvent?.Invoke();
+    }
+
+    public void RemoveAllChildren() {
+        _children.Clear();
+        LayoutControllerUpdatedEvent?.Invoke();
+    }
+
+    public bool HasChild(ILayoutItem child) => _children.Exists(
+        x => x.EqualsToLayoutItem(child)
+    );
+    public void UpdateChild(ILayoutItem item) { }
+    public void UpdateSelf(ILayoutItem item) { }
+
+    public void Recalculate(Vector2 constraints) {
+        _dimensions.Clear();
+
+        var largest = Vector2.zero;
+        var sizes = new Vector2[_children.Count];
+
+        for (var i = 0; i < _children.Count; i++) {
+            sizes[i] = _children[i].Measure(
+                width: float.NaN,
+                widthMode: MeasureMode.Undefined,
+                height: float.NaN,
+                heightMode: MeasureMode.Undefined
+            );
+            largest = new Vector2(
+                Mathf.Max(largest.x, sizes[i].x),
+                Mathf.Max(largest.y, sizes[i].y)
+            );
+        }
+
+        var preferred = Vector2.one * (_radius * 2f) + largest;
+        _size = constraints.x > 0f && constraints.y > 0f
+            ? constraints
+            : preferred;
+
+        var center = _size / 2f;
+
+        for (var i = 0; i < _children.Count; i++) {
+            var turn = i / (float)_children.Count;
+            var angle = turn * Mathf.PI * 2f - Mathf.PI / 2f;
+            var direction = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+            var position = center + direction * _radius;
+            var size = sizes[i];
+
+            _dimensions.Add(new LayoutDimensions(
+                TopOffset: position.y - size.y / 2f,
+                LeftOffset: position.x - size.x / 2f,
+                Width: size.x,
+                Height: size.y
+            ));
+        }
+    }
+
+    public LayoutDimensions GetSelfDimensions() {
+        return new LayoutDimensions(0f, 0f, _size.x, _size.y);
+    }
+
+    public LayoutDimensions GetChildDimensions(ILayoutItem child) {
+        var index = _children.FindIndex(x => x.EqualsToLayoutItem(child));
+        return index >= 0 && index < _dimensions.Count
+            ? _dimensions[index]
+            : default;
+    }
+
+    // How the flex parent asks this tree for its size when it isn't fixed
+    public Vector2 Measure(
+        float width,
+        MeasureMode widthMode,
+        float height,
+        MeasureMode heightMode
+    ) {
+        Recalculate(Vector2.zero);
+        return LayoutTool.MeasureNode(
+            preferredSize: _size,
+            width: width,
+            widthMode: widthMode,
+            height: height,
+            heightMode: heightMode
+        );
+    }
+}
+```
+</Playground>
+
+
+None of the rings has a size of its own. Each is measured by the row the moment it is inserted, its box is as big as
+its radius and its largest number need, and the blocks on either side move apart to make room. The flex parent
+doesn't know what a ring does with its children. It sees a leaf with a measured size.
+
+That measurement is taken when the ring enters the layout and when the row is laid out again for its own reasons. A
+change *inside* the ring, a new radius or a child added to it, recalculates the ring but is not reported to the
+parent, so the box the parent keeps stays as it was. A ring whose size changes at runtime therefore gets a `Size` of
+its own, bound to a state as in the showcase, and only its contents are recalculated.
+
+## Flexbox inside
+
+The children of a custom controller can be anything, including flex layouts. Each one is then a Yoga tree of its
+own, and the controller measures it the same way it measures a label. `Measure` on a child that is a `Layout` is
+forwarded to its controller, which calculates the subtree for the modes it was given and reports the size.
+
+<Playground preview="/assets/layout/flex-in-radial.gif">
+```csharp excerpt
+new Layout {
+    LayoutController = new RadialLayoutController { Radius = 14f },
+
+    FlexItem = {
+        Size = 46.pt
+    },
+
+    Children = {
+        new Background {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                Padding = 1.pt
+            },
+
+            Children = {
+                new Label { Text = "1" },
+                new Label { Text = "card", FontSize = 2.4f }
+            }
+        },
+
+        ...
+    }
+}
+```
+```csharp
+class CardsOnRing : ReactiveComponent {
+    private const int ItemCount = 5;
+
+    protected override GameObject Construct() {
+        var expanded = Remember(false);
+
+        var ring = new Layout {
+            LayoutController = new RadialLayoutController { Radius = 14f },
+
+            FlexItem = {
+                Size = 46.pt
+            }
+        };
+
+        for (var i = 0; i < ItemCount; i++) {
+            ring.Children.Add(CreateCard(
+                index: i,
+                expanded: expanded
+            ));
+        }
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 2.pt
+            },
+
+            Children = {
+                ring,
+
+                new BsToggle {
+                    OnToggleStateChanged = x => expanded.Value = x
+                }.InNamedRail("More in the cards")
+            }
+        }.Use();
+    }
+
+    // Each card is a flex column of its own, measured by the radial controller
+    [StateGen]
+    private static Background CreateCard(int index, IState<bool> expanded) {
+        return new Background {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                Padding = new() {
+                    top = 1.pt,
+                    bottom = 1.pt,
+                    left = 2.pt,
+                    right = 2.pt
+                },
+                Gap = 0.5f.pt
+            },
+
+            Sprite = BeatSaberResources.Sprites.background,
+            PixelsPerUnit = 10f,
+            Color = Color.HSVToRGB(index / (float)ItemCount, 0.5f, 0.6f) with {
+                a = 0.6f
+            },
+
+            Children = {
+                new Label {
+                    Text = (index + 1).ToString(),
+                    FontSize = 3.6f,
+                    Color = Color.HSVToRGB(index / (float)ItemCount, 0.6f, 1f)
+                },
+
+                new Label {
+                    FontSize = 2.4f,
+                    Color = Color.white with { a = 0.7f },
+                    sText = expanded.Map(x => x && index == 0
+                        ? "a longer caption"
+                        : "card"
+                    )
+                },
+
+                new Label {
+                    Text = "details",
+                    FontSize = 2.4f,
+                    Color = Color.white with { a = 0.7f },
+                    sEnabled = expanded.Map(x => x && index == 2)
+                }
+            }
+        };
+    }
+}
+```
+
+```csharp title="RadialLayoutController.cs"
+class RadialLayoutController : ILayoutController {
+    public float Radius {
+        get => _radius;
+        set {
+            _radius = value;
+            LayoutControllerUpdatedEvent?.Invoke();
+        }
+    }
+
+    public int ChildCount => _children.Count;
+
+    public event Action? LayoutControllerUpdatedEvent;
+
+    private readonly List<ILayoutItem> _children = new();
+    private readonly List<LayoutDimensions> _dimensions = new();
+    private float _radius = 10f;
+    private Vector2 _size;
+
+    // No context type, so a parent never stitches this controller into its
+    // tree and measures it instead
+    public Type? ContextType => null;
+    public object CreateContext() => new object();
+    public void ProvideContext(object? context) { }
+
+    public void InsertChild(ILayoutItem child, int index) {
+        _children.Insert(index, child);
+        LayoutControllerUpdatedEvent?.Invoke();
+    }
+
+    public void RemoveChild(ILayoutItem child) {
+        _children.RemoveAll(x => x.EqualsToLayoutItem(child));
+        LayoutControllerUpdatedEvent?.Invoke();
+    }
+
+    public void RemoveAllChildren() {
+        _children.Clear();
+        LayoutControllerUpdatedEvent?.Invoke();
+    }
+
+    public bool HasChild(ILayoutItem child) => _children.Exists(
+        x => x.EqualsToLayoutItem(child)
+    );
+    public void UpdateChild(ILayoutItem item) { }
+    public void UpdateSelf(ILayoutItem item) { }
+
+    public void Recalculate(Vector2 constraints) {
+        _dimensions.Clear();
+
+        var largest = Vector2.zero;
+        var sizes = new Vector2[_children.Count];
+
+        for (var i = 0; i < _children.Count; i++) {
+            sizes[i] = _children[i].Measure(
+                width: float.NaN,
+                widthMode: MeasureMode.Undefined,
+                height: float.NaN,
+                heightMode: MeasureMode.Undefined
+            );
+            largest = new Vector2(
+                Mathf.Max(largest.x, sizes[i].x),
+                Mathf.Max(largest.y, sizes[i].y)
+            );
+        }
+
+        var preferred = Vector2.one * (_radius * 2f) + largest;
+        _size = constraints.x > 0f && constraints.y > 0f
+            ? constraints
+            : preferred;
+
+        var center = _size / 2f;
+
+        for (var i = 0; i < _children.Count; i++) {
+            var turn = i / (float)_children.Count;
+            var angle = turn * Mathf.PI * 2f - Mathf.PI / 2f;
+            var direction = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+            var position = center + direction * _radius;
+            var size = sizes[i];
+
+            _dimensions.Add(new LayoutDimensions(
+                TopOffset: position.y - size.y / 2f,
+                LeftOffset: position.x - size.x / 2f,
+                Width: size.x,
+                Height: size.y
+            ));
+        }
+    }
+
+    public LayoutDimensions GetSelfDimensions() {
+        return new LayoutDimensions(0f, 0f, _size.x, _size.y);
+    }
+
+    public LayoutDimensions GetChildDimensions(ILayoutItem child) {
+        var index = _children.FindIndex(x => x.EqualsToLayoutItem(child));
+        return index >= 0 && index < _dimensions.Count
+            ? _dimensions[index]
+            : default;
+    }
+
+    // How the flex parent asks this tree for its size when it isn't fixed
+    public Vector2 Measure(
+        float width,
+        MeasureMode widthMode,
+        float height,
+        MeasureMode heightMode
+    ) {
+        Recalculate(Vector2.zero);
+        return LayoutTool.MeasureNode(
+            preferredSize: _size,
+            width: width,
+            widthMode: widthMode,
+            height: height,
+            heightMode: heightMode
+        );
+    }
+}
+```
+</Playground>
+
+
+Each card is a column that sizes itself to its labels. When a caption gets longer, or a card shows another row, the
+card's own tree changes, the change is reported up to the ring, and the ring recalculates. It measures the card
+again, gets the new size, and centers it on the same point of the circle. The card doesn't know it is on a ring, and
+the ring doesn't know the card is a column. Each side only measures and places.
+
+The cost of either direction is the extra pass at the boundary, a measure followed by a recalculation with the final
+size. That is nothing for a ring of eight and something for a tree of a thousand, so nest flex in flex where you
+can, and reserve separate trees for the places that need another algorithm.
+
+## Per-child settings
+
+If items need per-child settings, such as an angle offset or a weight, define a class that implements
+`ILayoutModifier`, raise its `ModifierUpdatedEvent` when it changes, and read it from `child.LayoutModifier` in
+`InsertChild` and `UpdateChild`. That is all `YogaModifier` is to `YogaLayoutController`.

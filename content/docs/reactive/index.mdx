@@ -1,0 +1,102 @@
+---
+title: "Introduction"
+description: What Reactive is, why it beats BSML, and where to start.
+---
+
+Reactive is a UI library for Beat Saber mods. You write the view in C#, next to the code that drives it, as a tree
+of components. The values that change over time live in states, and whatever reads a state follows it. No markup,
+no code-behind, nothing to refresh by hand.
+
+The whole idea fits in one component. A label shows a number, and a button increments it:
+
+<Playground showCode preview="/assets/intro/counter.gif">
+```csharp
+class Counter : ReactiveComponent {
+    protected override GameObject Construct() {
+        var count = Remember(0);
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                Gap = 2.pt
+            },
+
+            Children = {
+                new Label {
+                    FontSize = 9f,
+                    sText = count.Map(x => x.ToString())
+                },
+
+                new BsPrimaryTextButton {
+                    Text = "+1",
+                    OnClick = () => count.Value++
+                }
+            }
+        }.Use();
+    }
+}
+```
+</Playground>
+
+The button only changes `count.Value`. It doesn't know a label exists. The label reads the count through `sText`
+and follows on its own. Everything else in these docs is that idea applied to layout, input, animation and lists.
+
+## Why not BSML
+
+BSML describes a view in XML and wires it up through a class behind it. That is fine for a static panel, and gets
+harder the more the UI has to change while it's open.
+
+### Reactivity
+
+In BSML, a value that changes needs a `[UIValue]` property and a `NotifyPropertyChanged` call in every setter that
+affects it. In Reactive you bind once. Here the line at the bottom follows the slider with nothing else to write.
+
+<Screenshot src="/assets/intro/coming-from-bsml.gif" alt="A settings panel whose volume text updates as the slider moves" />
+
+### Lists
+
+BSML's `macro.for-each` runs once, when the markup is parsed. A [Repeater](/docs/reactive/lists/lists) keeps one row
+per item for as long as the items change, reuses the rows it already has, and keeps track of which ones are selected.
+
+<Screenshot src="/assets/lists/selection.gif" alt="A list of difficulties with several selected, and a line below listing the current selection" />
+
+### Animations
+
+BSML has no animations of its own, so you write the loop yourself. Reactive can animate both a value and a target. An
+[animated state](/docs/reactive/animation/animated-states) eases a value toward its new one, and anything bound to it
+follows. An [animation player](/docs/reactive/animation/players) plays an animation on a target, like fading, scaling
+or spinning a component.
+
+<Screenshot src="/assets/animation/curves.gif" alt="Five dots sliding along their tracks, each on a different easing curve" />
+
+### Flexboxes
+
+Layout uses [flexbox](/docs/reactive/layout/yoga), the same model as the web. Items of different sizes wrap onto new
+rows and grow to fill them as space changes, which BSML's layout groups can't do. When flexbox isn't enough, you can
+[write your own controllers](/docs/reactive/layout/custom).
+
+<Screenshot src="/assets/layout/flex-wrap.gif" alt="Blocks of different sizes wrapping onto new rows and stretching to fill them as a slider narrows the panel" />
+
+### Integration
+
+BSML connects markup to code through strings, so a typo only shows up when the view is parsed. A Reactive view is plain
+C# in one class, so a typo is a compile error, and your IDE can navigate and rename through it.
+
+<Screenshot src="/assets/intro/compile-error.gif" alt="Misspelling sText as sTxt underlines it and shows a compile error" />
+
+### Performance
+
+BSML parses its markup on every mount, and its `custom-list` parses a new cell for each row that comes into view. A
+[Table](/docs/reactive/lists/lists#tables-and-scrolling) reuses its cells instead. In our PC benchmarks, jumping far
+through a table of 100000 rows is 16 times faster, and mounting is 2.8 to 7.8 times faster.
+
+<Screenshot src="/assets/lists/table.gif" alt="A table of many rows scrolling and jumping far with no delay" />
+
+[Performance Benchmarks](/docs/reactive/performance) has every number. You do give up BSML's hot reload and rebuild
+instead, though the [Playground](/playground) covers quick experiments.
+
+## Where to start
+
+[Getting Started](/docs/reactive/getting-started) covers installing Reactive, and
+[Coming from BSML](/docs/reactive/coming-from-bsml) covers migrating an existing UI.

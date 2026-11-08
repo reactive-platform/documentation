@@ -1,0 +1,295 @@
+---
+title: "Components"
+description: "Building a component with Construct and Use, composing components, the lifecycle and the host behind it, coroutines and modules."
+---
+
+## Construct and Use
+
+A component is a class that derives from `ReactiveComponent` and overrides `Construct`. `Construct` builds the view
+with ordinary object initializers and returns its root `GameObject`.
+
+```csharp
+class HelloLabelDemo : ReactiveComponent {
+    protected override GameObject Construct() {
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                Gap = 1.pt
+            },
+
+            Children = {
+                new Label {
+                    Text = "Hello, Reactive!",
+                    FontSize = 7f,
+                    FontStyle = FontStyles.Bold
+                },
+
+                new Label {
+                    Text = "Built once, in Construct",
+                    FontSize = 3.5f,
+                    Color = Color.white with { a = 0.6f }
+                }
+            }
+        }.Use();
+    }
+}
+```
+
+<Screenshot src="/assets/components/hello.png" alt="Two labels in a column" />
+
+
+Everything in there is plain C#. `new Label { Text = ... }` creates a label and sets its properties. `Children = { ... }`
+adds to the layout's children collection. Nothing is special-cased, so a `foreach`, a ternary or a helper method
+works anywhere inside the tree.
+
+`Construct` runs exactly once, and the objects it creates are the real ones. There is no second description of the
+view that gets compared to the previous one, and there is no re-render. When something has to change later, a
+[state](/docs/reactive/state/states) changes the existing object in place. An update costs the properties it touches
+and nothing more.
+
+`Use()` turns a component into a `GameObject`. Without arguments, as at the end of `Construct`, it builds the component
+if that hasn't happened yet and returns the root. That is what `Construct` has to return, so every `Construct` ends
+with `.Use()`. With a transform, `Use(parent)` also parents the root there. That is how a component gets on screen:
+
+```csharp
+public class CounterViewController : ViewController {
+    private void Awake() {
+        new Counter().Use(transform);
+    }
+}
+```
+
+One timing detail matters. The constructor of `ReactiveComponent` calls `Construct`. By the time an object
+initializer runs on your component, as in `new Counter { Title = "..." }`, the tree already exists. A public property
+can therefore forward to something inside the tree. Field initializers run before the base constructor and are
+available in `Construct`. Arguments of your own constructor are not, because the base constructor runs first. If you
+need them inside `Construct`, use the protected `ReactiveComponent(bool constructImmediate)` constructor with `false`,
+store the arguments, and call `ConstructAndInit()` yourself.
+
+`Construct` has two overloads. Composite components override `Construct()` and return a tree, as above. Components
+that wrap a native Unity component override `Construct(RectTransform rect)` and add to the `GameObject` they are
+given. That is how `Label` adds its `TextMeshProUGUI`.
+
+## Composing components
+
+UI written in C# composes like code. There are three ways to write a piece of it, and the same card below is written
+all three ways.
+
+```csharp
+new Layout {
+    FlexController = {
+        AlignItems = Align.FlexStart,
+        Gap = 3.pt
+    },
+
+    Children = {
+        new Background {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                Padding = 2.pt,
+                Gap = 0.5f.pt
+            },
+
+            Sprite = BeatSaberResources.Sprites.background,
+            PixelsPerUnit = 10f,
+            Color = Color.white with { a = 0.1f },
+
+            Children = {
+                new Label {
+                    Text = "Inline",
+                    FontSize = 3.5f,
+                    FontStyle = FontStyles.Bold
+                },
+                new Label {
+                    Text = "used once",
+                    FontSize = 2.6f,
+                    Color = Color.white with { a = 0.6f }
+                }
+            }
+        },
+
+        CreateCard("Method", "reused often"),
+
+        new CounterCard {
+            Title = "Component"
+        }
+    }
+}
+```
+
+<Screenshot src="/assets/components/composing.png" alt="Three identical cards built three ways" />
+
+The first card is written inline, where it is used. That is the right choice when it is used once. The second comes
+from a method, `CreateCard`, which returns the same `Background` with the two strings as parameters. A method costs
+nothing over inline code and is the right choice whenever a shape repeats with different values. The third is a
+component, because it has something the other two do not have: state of its own and a public API.
+
+```csharp
+class CounterCard : ReactiveComponent {
+    public string Title {
+        get => _title.Text;
+        set => _title.Text = value;
+    }
+
+    private Label _title = null!;
+
+    protected override GameObject Construct() {
+        var clicks = Remember(0);
+
+        return new Background {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                Padding = 2.pt,
+                Gap = 0.5f.pt
+            },
+
+            Sprite = BeatSaberResources.Sprites.background,
+            PixelsPerUnit = 10f,
+            Color = Color.white with { a = 0.1f },
+
+            Do = x => x.WithPointerEvents(onDown: _ => clicks.Value++),
+
+            Children = {
+                new Label {
+                    FontSize = 3.5f,
+                    FontStyle = FontStyles.Bold
+                }.Bind(ref _title),
+
+                new Label {
+                    FontSize = 2.6f,
+                    Color = Color.white with { a = 0.6f },
+                    sText = clicks.Map(x => $"clicked {x} times")
+                }
+            }
+        }.Use();
+    }
+}
+```
+
+`Title` forwards to a label inside the tree. That works because the tree exists before the initializer runs. A
+public property on a component is usually either a forwarder like this one, or a property backed by a private state
+that the component's own tree binds to. [Property Bindings](/docs/reactive/state/bindings#nested-objects-and-your-own-components)
+shows the second shape.
+
+## Lifecycle
+
+A `ReactiveComponent` is not a `MonoBehaviour`, and still it gets `Update`, `OnEnable`, `OnDestroy` and the rest.
+The bridge is the **host**. After `Construct`, the component takes the `GameObject` it received, makes sure it has a
+`RectTransform`, adds a hidden `ReactiveHost` behaviour to it, and registers itself there. The host is the only
+`MonoBehaviour` involved. It receives Unity's callbacks and forwards each one to every component registered on it.
+It runs the component's coroutines and ticks its modules. It is also what the layout system talks to when it
+measures or places the component.
+
+Several components can register on the same host, and that is the basis of composition. `Construct` conventionally
+ends with another component's `.Use()`, as in `return new Layout { ... }.Use();`. Your component and that `Layout`
+then live on the same `GameObject`: the layout added the host, and your component found it already there and
+registered too. Both get the same lifecycle events, and there is no wrapper object in the hierarchy. Your component
+*is* its root, with your API on top.
+
+The hooks, in the order they are called:
+
+| Hook                      | When it's called                                                                                                            |
+|---------------------------|-----------------------------------------------------------------------------------------------------------------------------|
+| `OnInstantiate`           | In the constructor, before `Construct`.                                                                                     |
+| `Construct`               | In the constructor, once.                                                                                                   |
+| `OnInitialize`            | Right after `Construct`, once the host exists.                                                                              |
+| `OnStart`                 | On the host's first Unity `Start`, or immediately if the host already started.                                              |
+| `OnEnable`                | When the root `GameObject` becomes active in the hierarchy, including through `Enabled` and through a parent being enabled. |
+| `OnUpdate`                | Every frame while active, from `Update`.                                                                                    |
+| `OnLateUpdate`            | Every frame while active, from `LateUpdate`, after all `OnUpdate`s.                                                         |
+| `OnRectDimensionsChanged` | When the root's rect changes size, for any reason.                                                                          |
+| `OnLayoutApply`           | After the layout system applied new dimensions to the root.                                                                 |
+| `OnDisable`               | When the root becomes inactive in the hierarchy.                                                                            |
+| `OnDestroy`               | When the root `GameObject` is destroyed, or `Destroy()` is called.                                                          |
+
+## Coroutines
+
+A component can run coroutines. They run on its host, which gives them the right lifetime without any bookkeeping.
+A coroutine is paused while the component is disabled and stopped when the component is destroyed, so a request that
+completes after the screen is gone never touches a dead view. `StartCoroutine(IEnumerator)` starts one.
+`StopCoroutine(IEnumerator)` stops that one. `StopAllCoroutines()` stops everything the component started.
+
+The pattern is the same as for `OnUpdate`. The coroutine writes states, the view reads them, and the coroutine never
+touches a component directly.
+
+```csharp
+private State<bool> _loading = null!;
+private State<string> _result = null!;
+
+private IEnumerator Load() {
+    _loading.Value = true;
+
+    yield return request.SendWebRequest();
+
+    _result.Value = request.downloadHandler.text;
+    _loading.Value = false;
+}
+
+private void Cancel() {
+    StopAllCoroutines();
+    _loading.Value = false;
+}
+```
+
+Coroutines are the right tool for a sequence of waits, such as a request followed by a parse followed by a delay.
+For work that should happen every frame, `OnUpdate` is simpler. For work that should happen every frame on several
+components, write a module.
+
+## Modules
+
+A module is an object that ticks with a component. Any object that implements `IReactiveModule` can be handed to a
+component with `BindModule`. From then on the host calls its `OnUpdate` every frame while the component is active.
+`OnBind` is called when the module is attached and `OnUnbind` when `UnbindModule` removes it. Modules bound before the
+component is constructed, from a field initializer or `OnInstantiate`, are kept aside and transferred to the host once
+it exists, so the binding order doesn't matter.
+
+That is the whole interface. It is how Reactive attaches time-based behaviour to a component without giving the
+component a `MonoBehaviour` of its own, and it is what animated states and animation players are. `RememberAnimated`
+is a constructor call followed by `BindModule`. That is why an animation advances only while its component is active,
+pauses when the component is hidden, and dies with it, without being told any of that.
+[Animated States](/docs/reactive/animation/animated-states) builds on this.
+
+Write a module when the same per-frame behaviour is needed by several components, or when a component would otherwise
+grow an `OnUpdate` that juggles several unrelated timers. A blinking indicator:
+
+```csharp
+class Blink : IReactiveModule {
+    public State<bool> On { get; } = new(true);
+
+    public float Interval { get; set; } = 0.5f;
+
+    private float _time;
+
+    public void OnUpdate() {
+        _time += Time.deltaTime;
+
+        if (_time >= Interval) {
+            _time = 0f;
+            On.Value = !On.Value;
+        }
+    }
+
+    public void OnBind() {
+        _time = 0f;
+    }
+
+    public void OnUnbind() { }
+}
+```
+
+```csharp
+var blink = new Blink { Interval = 0.3f };
+BindModule(blink);
+
+new Label {
+    Text = "Recording",
+    sEnabled = blink.On
+};
+```
+
+The module keeps its own state and exposes it as a `State<bool>`. The component that binds it writes no update code
+at all. It binds `On` like any other state. Unbind the module when the behaviour should stop before the component goes
+away. Otherwise there is nothing to clean up, because the host drops its modules together with everything else.

@@ -1,0 +1,96 @@
+---
+title: "Source Generator and Analyzers"
+description: "What Reactive.Compiler generates for a binding, where it looks and how to steer it, and the required-property and variadic generators."
+---
+
+## What a binding is
+
+`Reactive.Compiler` is a Roslyn source generator and a set of analyzers. It is referenced as an analyzer, so it runs
+inside the C# compiler rather than at runtime. Most of what it does is the `s`-properties from
+[Property Bindings](/docs/reactive/state/bindings). This is what one of them actually is.
+
+When the generator sees `sText = <state>` in an object initializer of a `Label`, and `sText` doesn't resolve to any
+real member, it looks for a `Text` property on `Label` with a setter and emits this into your assembly:
+
+```csharp
+[EditorBrowsable(EditorBrowsableState.Never)]
+[GeneratedCode("Reactive_StateGenerator", "1.0")]
+internal static class Reactive_Label_StateGenExt {
+    extension(Label obj) {
+        [SetsRequired(Names = ["Text"])]
+        public StateBinder<string, IState<string>> sText {
+            set {
+                value.AddCallback(obj, static (x, y) => x.Text = y);
+            }
+        }
+    }
+}
+```
+
+A binding is a state callback that sets the property. What the generator adds is doing it the same careful way every
+time. The lambda is static and the target is an argument, so binding doesn't allocate a closure and the callback
+doesn't keep the target alive. The callback is tied to the target's lifetime through the overload it picks:
+`AddCallback` for components and anything else that implements `ILifetimeProvider`, `AddCallbackUnity` for Unity
+objects, and `AddCallbackWeak` for everything else. A modifier or a transform bound to a state therefore never keeps
+growing the state's subscriber list. The property is set once on assignment, before the subscription starts waiting
+for changes, and that is `StateBinder`'s job. It is a small `ref struct` on the left-hand side that a state converts
+to implicitly. It holds the state and a flag for lazy application, and performs the subscription when the generated
+setter asks. The conversion is also why `.In()` exists. C# won't apply a user-defined conversion from an interface
+type, so a parameter typed `IState<T>` needs an explicit wrap, and `.InLazy()` sets the lazy flag.
+
+The extension is generated into the assembly that uses the binding, one class per bound type. That is why the
+property, its type and the receiver all have to be visible from that assembly. A property is bindable when it has a
+non-`init` setter, isn't static or an indexer, and isn't marked `[RawState]`. A raw state opts out because it wants
+the state object itself rather than its values. The `RawStateAnalyzer` reports `RV004` as a reminder that subscribing
+is now the owner's job, and `RV005` if the property isn't typed as an `IState<T>`.
+
+## Where it looks and how to steer it
+
+The generator only looks at object initializers inside members marked `[StateGen]`. `Construct` carries the attribute,
+and overrides inherit it, so inside `Construct` bindings just exist. A helper method that builds part of a tree needs
+the attribute itself. The patterns it matches default to `s{}`, with `{}` standing for the property name, and both can
+be changed.
+
+```csharp
+[StateGen(Patterns = ["state_{}", "st{}"])]
+protected override GameObject Construct() { ... }
+
+[StateGen(Enabled = false)]
+protected override GameObject Construct() { ... }
+```
+
+A pattern without an identifier around the `{}` is reported as `RV001` or `RV002`, because it couldn't be matched
+unambiguously. The `GeneratedBindingAnalyzer` reports `RV006` when a generated binding is used somewhere that doesn't
+generate it, outside an initializer or in a member without the attribute. Such a usage only compiles while some other
+usage happens to generate the same property, and it breaks the moment that other usage changes.
+
+Generation is driven by usage, so a Release build contains only the bindings that are assigned somewhere. In Debug,
+the generator reads the build configuration and pre-generates a binding for every settable property of every type
+you initialize, so completion can suggest `sText` before you have typed it. For that it needs the configuration to be
+visible to the compiler, which is what `<CompilerVisibleProperty Include="Configuration" />` in the project file is
+for. The NuGet package adds it through its `.props`. A project reference needs it spelled out.
+
+## Required properties and the other generators
+
+`[Required]` on a property makes every object initializer of that type have to set it. It does what the `required`
+keyword does, with one difference. The keyword forbids a type with required members from satisfying a `new()`
+constraint, and Reactive's pools and repeaters create components through exactly that constraint. `Repeater` uses the
+attribute for `Items` and `ConstructCell`, so forgetting either is a build error, `RV102`, rather than a null at
+runtime. The `RequiredCtorGenerator` adds a public parameterless constructor to any type with required properties so
+the constraint stays satisfiable, and reports `RV107` if you declared a conflicting one. `RV105` and `RV106` reject
+required properties that are static or declared in a static class, where the concept doesn't apply.
+
+Generated bindings carry `[SetsRequired(Names = ["Text"])]`. That is how `sItems = names` counts as setting `Items` for
+the required check. You can put the same attribute on an extension property of your own that initializes a required
+member on the receiver's behalf. `RV103` reports a name that doesn't exist on the target, and `RV104` a property that
+is both required and sets required members, which can't be both.
+
+Two more generators are used by the library itself and available to you. `[NoStateCapture]` marks a delegate
+parameter whose lambdas must receive states as arguments instead of capturing them. `RememberDerived` and
+`DerivedState` mark their function parameter with it. The `StateCaptureAnalyzer` walks each lambda body for references
+to states declared outside it and reports them as `RV108`. A derived state that would silently miss a dependency
+becomes a build warning instead. `[VariadicGen]` generates versions of a method or type for two up to N of a growing
+element, from the version for one, using patterns like `"IState<T{}> state{}"` to say which parameters and members
+grow. `RememberDerived` and `DerivedState` are written once for a single state and generated up to eight. That is why
+the overloads are identical, and why the eighth works exactly like the first. Every diagnostic, with its fix, is
+listed on [Compiler Diagnostics](/docs/reactive/reference/compiler-diagnostics).

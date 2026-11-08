@@ -1,0 +1,86 @@
+---
+title: "Layout Engine Internals"
+description: "The layout interfaces, how nested layouts are stitched into one Yoga tree, and how separate trees connect through measuring."
+---
+
+## The interfaces
+
+The core library describes layout with a handful of interfaces, none of which know about flexbox. Yoga is the
+controller that ships in the box, and everything on this page would hold for another one.
+
+An `ILayoutItem` is anything that can be placed. It knows its `LayoutDriver`, the container it is in. It holds a
+`LayoutModifier`, the per-item data that container's controller reads. It can be measured through `ILayoutMeasurable`,
+and it receives `LayoutDimensions`, a top, a left, a width and a height, through `ApplyLayout`. It also exposes
+`WithinLayout`, which says whether it currently takes part in its parent's layout and is false while it is disabled
+(unless `WithinLayoutIfDisabled`) or ignored, and `HasIntrinsicContent`, which says whether measuring it is
+meaningful. Every `ReactiveComponent` is an item, implemented by its host. Items are compared with
+`EqualsToLayoutItem` rather than by reference, because a component and its host are the same item seen from two
+sides.
+
+An `ILayoutDriver` is an item that also holds `Children` and may have a `LayoutController`. `Layout` is the standard
+one, and its job is deliberately small. It never places anything. It listens to each child's `LayoutDataUpdatedEvent`,
+which an item raises when its modifier, its `WithinLayout` state or its content size changes, and does the minimum
+in response. A child that came into the layout is inserted into the controller at its position among the laid-out
+siblings, so order is preserved across hiding and showing. A child that left is removed from the controller but stays
+physically parented to the driver. A child that is still in is updated, so the controller re-reads its modifier and
+marks it dirty. In every case a recalculation is scheduled, and the scheduler deduplicates. Swapping the controller
+moves every child over and schedules as well.
+
+An `ILayoutController` is where the algorithm lives. It is told about children going in and out through
+`InsertChild`, `RemoveChild`, `RemoveAllChildren` and `UpdateChild`. It recalculates on request through
+`Recalculate(constraints)`. It answers what size each child and the driver itself ended up with through
+`GetChildDimensions` and `GetSelfDimensions`. It can be measured by a parent of another kind through `Measure`. And
+it raises `LayoutControllerUpdatedEvent` when one of its own properties changes the result, which the driver turns
+into a scheduled recalculation. `UpdateSelf` applies the driver's own modifier when the driver is a root and nobody
+else will. `YogaLayoutController` is what `FlexController` creates, and the showcase's radial controller is a complete
+example of another. [Custom Layout Controllers](/docs/reactive/layout/custom) walks through it.
+
+An `ILayoutModifier` is per-item data for the parent's controller. It raises `ModifierUpdatedEvent` when it changes.
+`YogaModifier` is `FlexItem`, and it keeps every property nullable so a modifier can say "no opinion" about an axis.
+`ILayoutControllerHolder` exposes a controller without being a driver, which is how `Repeater` and the segmented
+control forward `FlexController` to the `Layout` they build inside. Items and drivers are both `ILayoutNode`s, which
+carry the scheduling stamps the frame uses and are what it queues and recalculates.
+
+## Stitching
+
+A screen is many nested layouts, each with its own controller. If each calculated on its own, every level would
+measure the subtree below it again, and a deep screen would get slower per level. So directly nested flex layouts are
+stitched into one native tree, calculated by the root in a single call.
+
+The mechanism is the **layout context**, and it runs through `IContextMember`, which `ILayoutController` extends. A
+controller declares a `ContextType`, can `CreateContext`, and is given one through `ProvideContext`. When a Yoga
+controller inserts a child, it gives the child a context: a `YogaContext` that holds the child's native node, already
+inserted under the parent's node, assigned to the child through `AssignContext`. If the child is a `Layout`, its host
+asks its controller to claim a context for itself, through `ClaimLayoutContext`. Here is the stitch. If the context
+the parent assigned has the same type as the one the child's controller would create, the child claims that one
+instead of creating a fresh one. The child's controller now works on the very node the parent inserted. Its own
+children's nodes hang below that node, and the whole hierarchy is one tree. Contexts are reference counted. The
+parent that inserted the node retains it, the child that claimed it retains it, and it is released when the last
+holder lets go, which frees the native node the moment a subtree is removed.
+
+A stitched controller can tell that it has a parent node, and its `Recalculate` does nothing. Only the root calls
+`CalculateLayout`. Leaves get a measure function on their node that calls back into `ILayoutMeasurable.Measure`, so
+labels and images are measured as part of the same pass, and Yoga caches the results against the constraints it
+measured with. The root's recalculation then runs the engine with the parent rect as constraints and `NaN` on the
+unconstrained axes, applies the root's own dimensions, and walks down, handing each child its dimensions. A child with
+a controller applies its own children in turn. Stitched children were calculated together with the root, so applying
+is just reading sizes out of the shared tree. Every node remembers the dimensions it last applied and skips rects that
+didn't move, and `OnLayoutApply` and `LayoutAppliedEvent` fire on every node the pass reaches.
+
+## Separate trees
+
+Stitching only happens between controllers of the same kind, which is to say the same `ContextType`. A controller
+with another type, or none at all, can't join the parent's tree, so it forms one of its own, and the two trees meet
+through measuring. To the parent, the whole subtree is a single leaf. `HasIntrinsicContent` is true for a driver with
+a controller, so the parent's engine calls `Measure` on it. `Layout` forwards that to the controller, and the
+controller calculates its subtree against the modes it is given and reports the size. When the parent then hands the
+driver its final dimensions, the driver recalculates its subtree once more with exactly that size as constraints and
+applies its children.
+
+That is how any layout algorithm can sit inside flexbox and flexbox inside it. A ring of buttons laid out radially
+inside a column, or a column inside a cell of a custom grid, both work this way. The cost is the extra pass at the
+boundary, a measure followed by a recalculation with the final size. That is nothing for a ring of eight and
+something for a tree of a thousand, so the practical advice is to stitch where you can, by nesting flex in flex, and
+to reserve separate trees for places that need another algorithm. A controller that wants its own kind to stitch
+together does what `YogaLayoutController` does. It returns a context type, creates contexts that own the native node,
+and in `ProvideContext` adopts the node it is handed instead of making one.

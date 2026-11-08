@@ -1,0 +1,19 @@
+{
+  "title": "Reactive",
+  "description": "The UI library",
+  "root": true,
+  "pages": [
+    "index",
+    "getting-started",
+    "coming-from-bsml",
+    "components",
+    "state",
+    "layout",
+    "input",
+    "animation",
+    "lists",
+    "reference",
+    "under-the-hood",
+    "performance"
+  ]
+}

@@ -1,0 +1,383 @@
+---
+title: "Coming from BSML"
+description: How structure, layout and state differ from BSML, and how to migrate a mod.
+---
+
+If you've built mod UI before, you've used BSML, and most of what you know transfers. It just lives in different
+places.
+
+## The same view, both ways
+
+A small settings panel: a toggle, a volume slider, a language dropdown, and a line showing the volume.
+
+<Compare>
+
+```xml title="Markup"
+<vertical child-control-height='false' pad='4' spacing='1'>
+    <toggle-setting
+        text='Menu button enabled'
+        value='menu-button'
+        apply-on-change='true'
+    />
+    <slider-setting
+        text='Volume'
+        value='volume'
+        min='0'
+        max='100'
+        increment='5'
+        apply-on-change='true'
+    />
+    <dropdown-list-setting
+        text='Language'
+        value='language'
+        options='languages'
+        apply-on-change='true'
+    />
+    <text text='~volume-text' align='Center' />
+</vertical>
+```
+
+```csharp title="Code"
+public class SettingsController : NotifiableObject {
+    [UIValue("menu-button")]
+    public bool MenuButton { get; set; } = true;
+
+    [UIValue("volume")]
+    public float Volume {
+        get => _volume;
+        set {
+            _volume = value;
+            NotifyPropertyChanged(nameof(VolumeText));
+        }
+    }
+
+    [UIValue("volume-text")]
+    public string VolumeText => $"Volume is at {_volume:0}%";
+
+    [UIValue("language")]
+    public string Language { get; set; } = "Game Default";
+
+    [UIValue("languages")]
+    public List<object> Languages => new() {
+        "Game Default",
+        "English",
+        "Deutsch"
+    };
+
+    private float _volume = 70f;
+}
+```
+
+</Compare>
+
+In Reactive, one class:
+
+<Playground showCode preview="/assets/intro/coming-from-bsml.gif">
+```csharp
+public class Settings : ReactiveComponent {
+    protected override GameObject Construct() {
+        var menuButton = Remember(true);
+        var volume = Remember(70f);
+        var language = Remember("default");
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                JustifyContent = Justify.Center,
+                Gap = 1.pt,
+                Padding = new() { left = 25.pt, right = 25.pt }
+            },
+
+            Children = {
+                new BsToggle {
+                    sToggled = menuButton,
+                    OnToggleStateChanged = x => menuButton.Value = x
+                }.InNamedRail("Menu button enabled"),
+
+                new BsSlider {
+                    FlexItem = {
+                        Size = new() { x = 40.pt, y = 6.pt }
+                    },
+
+                    MinValue = 0f,
+                    MaxValue = 100f,
+                    ValueStep = 5f,
+                    sValue = volume,
+                    OnValueChanged = x => volume.Value = x
+                }.InNamedRail("Volume"),
+
+                new BsDropdown<string> {
+                    FlexItem = {
+                        Size = new() { x = 40.pt, y = 6.pt }
+                    },
+
+                    Items = new Dictionary<string, BsDropdownItem> {
+                        ["default"] = new("Game Default", null),
+                        ["english"] = new("English", null),
+                        ["german"] = new("Deutsch", null)
+                    },
+
+                    Key = language.Value,
+                    OnKeyChanged = x => language.Value = x
+                }.InNamedRail("Language"),
+
+                new Label {
+                    FlexItem = {
+                        Margin = new() { top = 3.pt },
+                        AlignSelf = Align.Center
+                    },
+
+                    Color = Color.white with { a = 0.5f },
+                    sText = volume.Map(x => $"Volume is at {x:0}%")
+                }
+            }
+        }.Use();
+    }
+}
+```
+</Playground>
+
+Most of the differences come from three shifts:
+
+- **From parsing to constructing.** BSML reads markup at runtime and builds a view from it. A Reactive view is ordinary
+  C# that runs in `Construct`, so there's nothing to parse, and loops, conditions and helper methods are just code.
+- **From notifying to binding.** In BSML, a setter tells the view that something changed. In Reactive, the value is a
+  state and the view reads it, so nothing has to remember to notify anyone.
+- **From strings to types.** BSML connects markup to code by name, like `value='volume'`. Reactive connects them
+  directly, so the compiler checks the view and your IDE can navigate and rename through it.
+
+The settings view above shows all three. The volume line needs no `VolumeText` property and no `NotifyPropertyChanged`
+call, because it's `volume.Map(...)` bound to the label. The dropdown's options are typed, a `string` key to an item,
+instead of a `List<object>`. Sizes and spacing are properties on the same objects, not attributes in another file, and
+they can be bound too.
+
+## The fundamentals
+
+### Structure
+
+A BSML view is two files that have to agree. The markup describes the tree, and a class behind it holds the values and
+actions, with the two connected by name. At runtime a parser reads the markup and builds the objects, every time the
+view is mounted.
+
+<Compare>
+
+```xml title="Markup"
+<vertical spacing='1'>
+    <text text='~title' />
+    <button text='Save' on-click='save' />
+</vertical>
+```
+
+```csharp title="Code"
+public class Panel : NotifiableObject {
+    private string _title = "Hello";
+
+    [UIValue("title")]
+    public string Title {
+        get => _title;
+        set {
+            _title = value;
+            NotifyPropertyChanged();
+        }
+    }
+
+    [UIAction("save")]
+    private void Save() {
+        Title = "Saved";
+    }
+}
+```
+
+```csharp title="Reactive"
+class Panel : ReactiveComponent {
+    protected override GameObject Construct() {
+        var title = Remember("Hello");
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                Gap = 1.pt
+            },
+
+            Children = {
+                new Label {
+                    sText = title
+                },
+
+                new BsTextButton {
+                    Text = "Save",
+                    OnClick = () => title.Value = "Saved"
+                }
+            }
+        }.Use();
+    }
+}
+```
+
+</Compare>
+
+A Reactive view is one class. `Construct` runs ordinary C# and returns the tree, so the objects in it are real objects
+from the start, not something a parser produces later from a description. That changes three things in practice.
+
+The first is how much of the view can be decided by code. BSML's `macro.for-each` runs once while the markup is parsed,
+and after that the shape of the tree is fixed. What you do from there is enable and disable the parts you declared up
+front. In Reactive, `if` and `foreach` work while building the tree, and a layout's `Children` is a collection you can
+add to and remove from whenever you like.
+
+The second is when mistakes show up. A misspelled name in BSML is a string that doesn't match anything, which you find
+out about when the view is parsed in the game. In Reactive it's a compile error, and your IDE can navigate and rename
+through the whole view.
+
+The third is cost. There's no markup to parse, so a view is only as expensive as the objects in it. On PC, mounting
+was 2.8 to 7.8 times faster than BSML in [our benchmarks](/docs/reactive/performance).
+
+### Layout
+
+This is the biggest change, and it's more than a new syntax.
+
+BSML uses Unity's layout system. `<vertical>` and `<horizontal>` are Unity's layout groups, and each child reports the
+sizes it would like through a `LayoutElement`. That model is rigid. A group lines its children up in one direction and
+that's all it does. It can't wrap items of different sizes onto a new line, it has no sizes relative to the parent, and
+it can't take one item out of the flow while still positioning it. So real BSML is full of workarounds. Content-sized
+containers need `horizontal-fit` and `vertical-fit`. Anything that doesn't fit the model gets `ignore-layout` and manual
+anchors. Most sizes end up as fixed numbers in `pref-width` and `pref-height`, which is why a change in one place so
+often means adjusting several others by hand.
+
+Reactive uses flexbox, through Meta's [Yoga](https://www.yogalayout.dev/) engine. It's the same model as CSS on the web,
+so if you've built a web page you already know it. Containers grow, shrink, wrap and align their children, sizes can be
+points, percentages of the parent or left to the content, and an item can be positioned absolutely while its parent
+stays in charge of it. Blocks like these rearrange themselves as the space changes, with no sizes worked out by hand:
+
+<Screenshot src="/assets/layout/flex-wrap.gif" alt="Blocks of different sizes wrapping onto new rows and stretching to fill them as a slider narrows the panel" />
+
+The vocabulary changes in one important way. BSML puts everything on the element, while Reactive splits it in two.
+`FlexController` describes how a container places its children. `FlexItem` describes how this element sits inside its
+parent.
+
+<Compare>
+
+```xml title="Markup"
+<vertical pref-width='60' pad='2' spacing='1'>
+    <text text='First' />
+    <text text='Second' />
+</vertical>
+```
+
+```csharp title="Reactive"
+new Layout {
+    FlexController = {
+        FlexDirection = FlexDirection.Column,
+        Gap = 1.pt,
+        Padding = 2.pt
+    },
+
+    FlexItem = {
+        Size = new() { x = 60.pt }
+    },
+
+    Children = {
+        new Label { Text = "First" },
+        new Label { Text = "Second" }
+    }
+}
+```
+
+</Compare>
+
+Most of what you already know has a direct equivalent:
+
+| BSML | Reactive |
+| --- | --- |
+| `<vertical>`, `<horizontal>` | `FlexDirection` set to `Column` or `Row` |
+| `spacing` | `Gap` on the controller |
+| `pad` | `Padding` on the controller |
+| `child-align` | `JustifyContent` and `AlignItems` on the controller |
+| `pref-width`, `pref-height` | `Size` on the item |
+| `min-width`, `min-height` | `MinSize` on the item |
+| `horizontal-fit`, `vertical-fit` | Nothing. Sizing from the content is the default |
+| `ignore-layout` | `PositionType.Absolute` on the item, or `IgnoreLayout` to leave the layout entirely |
+
+Three things catch people out when they switch. A controller is a row unless you say otherwise, where a `<vertical>`
+was a column by name. A container without a controller doesn't lay out its children at all, and their `FlexItem`
+settings are ignored. And because `Size` and the rest are ordinary properties, they can be bound to a state, so a
+size can animate or follow a value with no extra work.
+
+Layout also stops being something you have to think about for performance. Changes mark a layout as dirty, and it's
+recalculated once per frame no matter how many things changed. Nested flex containers join a single tree, so a deep
+screen doesn't get slower per level. And flexbox isn't the only option: the controller is replaceable, so you can
+[write your own](/docs/reactive/layout/custom) and mix it with flexbox in the same tree.
+
+[Layout System](/docs/reactive/layout/system) explains the model, and [Flexboxes](/docs/reactive/layout/yoga) lets you
+try every property live.
+
+### State
+
+In BSML, the view asks your class for a value, and your class has to say when that value changes. Each `[UIValue]`
+needs a matching `NotifyPropertyChanged` call, and a value computed from others needs one in the setter of everything
+it depends on. Miss one and the view silently goes stale, with nothing to warn you.
+
+Reactive turns this around. A value that changes is a state, and anything that reads it follows automatically.
+
+<Compare>
+
+```xml title="Markup"
+<text text='~score-text' />
+```
+
+```csharp title="Code"
+[UIValue("score-text")]
+public string ScoreText => $"Score: {_score}";
+
+public void AddPoint() {
+    _score++;
+    NotifyPropertyChanged(nameof(ScoreText));
+}
+```
+
+```csharp title="Reactive"
+var score = Remember(0);
+
+new Label {
+    sText = score.Map(x => $"Score: {x}")
+}
+
+// Anywhere later, and the label follows
+score.Value++;
+```
+
+</Compare>
+
+There's no separate property for the text and no notification to forget. `Map` is a state computed from another state,
+and `RememberDerived` does the same from several, so a value that depends on others can't fall out of step with them.
+
+States also change when work happens. A write doesn't update the view right away. Changed states are delivered once per
+frame, just before the UI renders, so writing a state a thousand times in one frame costs a single update with the final
+value. [States](/docs/reactive/state/states#how-changes-are-delivered) explains how that works, and
+[Property Bindings](/docs/reactive/state/bindings) covers the `s`-prefixed properties.
+
+## Migrating a mod
+
+You don't have to switch all at once. BSML and Reactive can live in the same mod, and BeatLeader ships both. A
+component can go under any UI transform, so it can even sit inside an existing BSML view:
+
+```csharp
+[UIComponent("container")]
+private RectTransform _container;
+
+[UIAction("#post-parse")]
+private void OnPostParse() {
+    new Counter().Use(_container);
+}
+```
+
+A practical order is:
+
+1. **Set up the project.** Add the references and the compiler package from [Getting Started](/docs/reactive/getting-started).
+2. **Start with one small, self-contained piece.** Rebuild it as a component and put it in its old place with
+   `Use(transform)`.
+3. **Replace whole screens next.** A view controller drops its `[ViewDefinition]` and creates the component in `Awake`.
+   Your flow coordinators and menu buttons stay as they are.
+4. **Move shared values into states** as screens stop needing `[UIValue]` properties, then delete the `.bsml` file.
+
+The one thing you lose is hot reload, so you rebuild to see a change instead. In exchange, the compiler checks the view,
+and the [Playground](/playground) is there for trying ideas quickly.

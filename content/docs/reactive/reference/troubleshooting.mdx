@@ -1,0 +1,92 @@
+---
+title: "Troubleshooting"
+description: Symptom, cause, fix. The things that catch everyone once.
+---
+
+Each entry links to the page that explains what's going on.
+
+## `sText` doesn't exist
+
+The `s`-bindings are written by a source generator, so if `sText`, `sColor` or `sEnabled` is an unknown member,
+the generator isn't running. Check that `Reactive.Compiler` is referenced: as a `PackageReference` with
+`PrivateAssets="all"` if you use the release, or as a `ProjectReference` with `OutputItemType="Analyzer"` if you
+build from source. Check that `LangVersion` is `latest`. The generated code uses extension members and won't compile on
+anything older. Then rebuild, because IDEs often need one before they see a generator's output. If a binding works in
+`Construct` but not in a helper method, the helper needs `[StateGen]`. And if the state you're assigning is typed
+as `IState<T>`, wrap it with `.In()`. → [Bindings](/docs/reactive/state/states),
+[Getting Started](/docs/reactive/getting-started)
+
+## `FlexItem` does nothing
+
+A `FlexItem` is read by the parent's controller, and if the parent has no `FlexController`, nobody reads it.
+Give the parent a controller, even with defaults. → [Layout System](/docs/reactive/layout/system#controllers-and-modifiers)
+
+## `FlexController = { }` does nothing
+
+An empty initializer never touches the getter, so no controller is created. Set at least one property, or use
+`.AsFlexGroup()` and `.AsFlexItem()`, which exist for exactly this. → [Layout System](/docs/reactive/layout/system#controllers-and-modifiers)
+
+## The label didn't update right after I set the state
+
+It did, from the point of view of the frame: state changes are delivered once per frame, right before the UI
+renders, so reading `label.Text` on the line after `count.Value++` shows the old text, while the screen shows the
+new one. If code genuinely needs the result before the end of the frame, `ReactiveScheduler.Run()` delivers
+everything now. → [Reactive State](/docs/reactive/state/states#how-changes-are-delivered), [The Update Cycle](/docs/reactive/under-the-hood/frame)
+
+## The root is the wrong size
+
+A root layout fills the rect it's attached to. If it's a popup that should fit its content, turn off
+`ConstrainHorizontal` and `ConstrainVertical` on its `FlexController`. If it's a full screen that's too small, it's
+attached to something smaller than the view. `Use(transform)` on the view controller itself gives it the whole view.
+And a root's position is never set by the layout system, only its size. → [Layout System](/docs/reactive/layout/system#leaves-and-roots)
+
+## My component is 100 by 100 and the children are anywhere
+
+Unity's default rect, and children left where their rects put them, means the component has no controller and
+isn't inside anything that lays it out. → [Layout System](/docs/reactive/layout/system)
+
+## A hidden component left a hole, or the content jumped
+
+Disabled components leave the layout by default, so content after them moves up. If you want the space kept, set
+`WithinLayoutIfDisabled = true`. If you wanted it to close up and it didn't, that flag is set somewhere, or the
+component is still enabled. → [Layout System](/docs/reactive/layout/system#showing-hiding-and-opting-out)
+
+## A list shows the wrong items after a change
+
+The cell copied something from the item when it was built, `Text = context.Item.Name` for instance, instead of
+reading it from the context. Cells are reused and handed new items, so everything a cell shows has to be a binding
+on its context: `sText = context.Map(x => x.Item.Name)`. → [Repeaters and Tables](/docs/reactive/lists/lists#cells-and-reuse)
+
+## The modal doesn't appear
+
+It opens over the nearest `Composition` up the hierarchy, which the plugin adds to every `ViewController` as it
+activates. A modal declared under something that isn't inside an activated view controller throws
+"The object is not in the composition stack". Also check that `IsPushed` is actually set: clicking outside doesn't
+close a modal on its own, so if `OnClickOutside` doesn't clear the state, the next open does nothing because it's
+still open. → [Modals and Dialogs](/docs/sdk/modals#how-overlays-work)
+
+## The animation stopped, or never started
+
+Animated states and players are modules of the component that created them, and only tick while that component
+is active in the hierarchy. A hidden component's animations pause until it's shown. If a `RememberAnimated` in a
+helper method doesn't animate, it was created on a component other than the one that's on screen. → [Animated States](/docs/reactive/animation/animated-states#animated-states)
+
+## `RememberDerived` doesn't follow one of its inputs
+
+The lambda reads a state that wasn't passed in as a dependency. The compiler reports this as `RV108`. The fix is
+to add the state to the argument list and take it as a parameter. → [Derived and Computed State](/docs/reactive/state/queries#derived-states)
+
+## Scrolling works with the mouse but not the joystick
+
+In VR the joystick only scrolls inside scroll areas, which attach an adapter for it. Put the content in a
+`ScrollArea` or a `Table`. → [Pointer Input and Interaction](/docs/reactive/input#scrolling)
+
+## A dragged thing freezes at the edge of the thing I'm dragging it on
+
+Pointer events stop once the pointer is over another graphic. Keep the `PointerEventData` from the press and read
+the position from it in `OnUpdate`. → [Pointer Input and Interaction](/docs/reactive/input#input-that-lasts)
+
+## Two `Background` types
+
+`Reactive.Components` and `Reactive.BeatSaber.Components` both define one. Add
+`using Background = Reactive.BeatSaber.Components.Background;` to the file. → [Getting Started](/docs/reactive/getting-started)

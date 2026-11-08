@@ -1,0 +1,186 @@
+---
+title: "Derived and Computed State"
+description: "Building states from other states with Map and Where, combining several with RememberDerived, and MapSelf."
+---
+
+## Map and Where
+
+You rarely bind a state as it is. More often you want something computed from it. The query operators take a state
+and give back a new one, and the result binds, maps again and passes around exactly like the original.
+
+<Playground>
+```csharp excerpt
+var number = Remember(4);
+
+var word = number.Map(x => words[x]);
+var color = number.Map(x => Color.HSVToRGB(x / 12f, 0.75f, 1f));
+var even = number.Where(x => x % 2 == 0);
+```
+```csharp
+class Queries : ReactiveComponent {
+    private static readonly string[] Words = [
+        "zero", "one", "two", "three", "four", "five", "six",
+        "seven", "eight", "nine", "ten", "eleven", "twelve"
+    ];
+
+    protected override GameObject Construct() {
+        var number = Remember(4);
+
+        var word = number.Map(x => Words[x]);
+        var color = number.Map(x => Color.HSVToRGB(x / 12f, 0.75f, 1f));
+        var even = number.Where(x => x % 2 == 0);
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 2.pt
+            },
+
+            Children = {
+                new Label {
+                    FontSize = 6f,
+                    sText = word,
+                    sColor = color
+                },
+
+                new Label {
+                    FontSize = 3f,
+                    Color = Color.white with { a = 0.6f },
+                    sText = even.Map(x => $"last even number: {x}")
+                },
+
+                new BsSlider {
+                    FlexItem = {
+                        Size = new() { x = 50.pt, y = 7.pt },
+                        Margin = new() { top = 2.pt }
+                    },
+                    MinValue = 0f,
+                    MaxValue = 12f,
+                    ValueStep = 1f,
+                    Value = number.Value,
+                    OnValueChanged = x => number.Value = (int)x
+                }
+            }
+        }.Use();
+    }
+}
+```
+</Playground>
+
+`Map` returns a state that is always a function of its source. Several maps from one state can never disagree,
+because all of them update when the source does. The word and the color above are two views of the same number. The
+result cannot be written to. Its value is defined by the source, and the only way to change it is to change the
+source. A mapped state is also lazy. It does not recompute when the source changes. It recomputes when something
+reads it after the source changed, and caches the result until the next change. Map a state that nobody reads and
+the function never runs, so mapping is cheap enough to do freely.
+
+`Where` returns a state that copies its source only when the value passes the predicate. Otherwise it holds on to
+the last value that did. `even` above is the last even number the slider landed on, however many odd ones were passed
+on the way. Before anything has passed, it holds the source's initial value, whether or not that value matches. Unlike
+`Map`, `Where` filters when values are delivered rather than when they are read, so right after a write its value is
+still the old one until the end of the frame. That is rarely observable, but it is the one place the two differ. The
+two chain. `number.Where(x => x > 0).Map(x => 1f / x)` is a reciprocal that cannot divide by zero.
+
+Both are extension methods on `IState<T>`, so they work on every kind of state, including derived states, animated
+states and cell contexts. Each returns an `IDisposable` wrapper that unsubscribes from the source when disposed. You
+only need that when a query outlives its component. Otherwise the wrapper, its subscription and the component are
+collected together.
+
+## Derived states
+
+`Map` takes one input. For a value that depends on several, `RememberDerived` takes up to eight states and a function
+of their values, in the same order.
+
+<Playground>
+```csharp excerpt
+var a = Remember(3f);
+var b = Remember(4f);
+
+var sum = RememberDerived(a, b, (x, y) => x + y);
+var text = RememberDerived(a, b, (x, y) => $"{x:0} + {y:0} = {x + y:0}");
+```
+```csharp
+class Derived : ReactiveComponent {
+    protected override GameObject Construct() {
+        var a = Remember(3f);
+        var b = Remember(4f);
+
+        var sum = RememberDerived(a, b, (x, y) => $"{x:0} + {y:0} = {x + y:0}");
+
+        // Follows a only: b is read once and never heard from again
+        var captured = a.Map(x => $"{x:0} + {b.Value:0} = {x + b.Value:0}");
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 2.pt
+            },
+
+            Children = {
+                new Label { FontSize = 5f, sText = sum },
+
+                new Label {
+                    FontSize = 3f,
+                    Color = Color.white with { a = 0.6f },
+                    sText = captured.Map(x => $"with a captured b: {x}")
+                },
+
+                CreateSlider(
+                    name: "a",
+                    state: a
+                ),
+                CreateSlider(
+                    name: "b",
+                    state: b
+                )
+            }
+        }.Use();
+    }
+
+    private static BsSlider CreateSlider(string name, State<float> state) {
+        return new BsSlider {
+            FlexItem = { Size = new() { x = 50.pt, y = 7.pt } },
+            MinValue = 0f,
+            MaxValue = 10f,
+            ValueStep = 1f,
+            Value = state.Value,
+            ValueFormatter = x => $"{name} = {x:0}",
+            OnValueChanged = x => state.Value = x
+        };
+    }
+}
+```
+</Playground>
+
+`sum` updates when either input changes. Like `Map`, it recomputes lazily and once, however many of its inputs changed
+in the same frame. It can never see one input updated and the other not, because the computation happens at delivery,
+and by then both writes have landed. `StateUtils.RememberDerived` does the same outside a component, and
+`DerivedState<T1, ..., T>` is the type if you want to name it.
+
+The inputs are parameters rather than captures. That is a correctness requirement, not a style choice. The second
+line in the example, `a.Map(x => ... b.Value ...)`, compiles and is wrong. Move the `b` slider and it doesn't change.
+
+`captured` only follows `a`. It has no idea `b` exists. It read `b` once, and when `b` changes nothing tells `sum` to
+recompute. A derived state can only follow what it was told about. The compiler enforces this. The function parameter
+of `RememberDerived` is marked `[NoStateCapture]`, and a lambda that reads a state from outside its own parameters is
+reported as `RV108`, with a message telling you to pass the state as a dependency. The fix is always the same: add
+the state to the argument list and take it as a parameter.
+
+The last query is for an edge case. `state.MapSelf()` returns a state whose value is the state itself, and it
+notifies whenever the original changes. It exists for reading something other than `Value` in a place that only
+receives values. The common case is an animated state's `IsFinished` or `TargetValue` inside a `RememberDerived`.
+
+```csharp
+var shown = RememberDerived(
+    anim.MapSelf(),
+    color,
+    (a, c) => a.IsFinished ? c : a.TargetValue
+);
+```
+
+Without `MapSelf` the lambda would receive the animated state's current value and have no way to reach the state
+itself. With it, the lambda receives the state and still re-runs whenever the state changes.

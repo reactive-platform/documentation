@@ -1,0 +1,122 @@
+---
+title: "Getting Started"
+description: "Referencing Reactive from a mod and showing a first component."
+---
+
+## Install and reference
+
+Install the Reactive plugin into the game. It puts `Reactive.BeatSaber.dll` in `Plugins` and `Reactive.dll` and
+`Reactive.Components.dll` in `Libs`, and depends on the `Yoga` mod for the native layout engine. Each release also
+contains a `Reactive.Compiler` NuGet package. Keep it somewhere NuGet can see. A local package source is enough.
+
+Then, in your mod's project:
+
+```xml
+<PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+</PropertyGroup>
+
+<ItemGroup>
+    <Reference Include="Reactive">
+        <HintPath>$(BeatSaberDir)/Libs/Reactive.dll</HintPath>
+        <Private>False</Private>
+    </Reference>
+    <Reference Include="Reactive.Components">
+        <HintPath>$(BeatSaberDir)/Libs/Reactive.Components.dll</HintPath>
+        <Private>False</Private>
+    </Reference>
+    <Reference Include="Reactive.BeatSaber">
+        <HintPath>$(BeatSaberDir)/Plugins/Reactive.BeatSaber.dll</HintPath>
+        <Private>False</Private>
+    </Reference>
+
+    <PackageReference Include="Reactive.Compiler" Version="1.0.0" PrivateAssets="all" />
+</ItemGroup>
+```
+
+`LangVersion` has to be `latest`: the API and the generated code use C# 14 extension members. `Private=False` keeps
+the DLLs out of your output, since the game already has them. `Reactive.Compiler` is a source generator that runs
+inside the compiler and writes the `sText`-style bindings. Without it nothing compiles.
+
+And in `manifest.json`:
+
+```json
+"dependsOn": {
+    "Reactive": "^2.0.0"
+}
+```
+
+To build Reactive from source instead, ReactiveShowcase's project file shows the submodule setup.
+
+## Your first component
+
+<Playground showCode preview="/assets/intro/quick-start.gif">
+```csharp
+using Reactive;
+using Reactive.BeatSaber.Components;
+using Reactive.Yoga;
+using UnityEngine;
+
+public class Counter : ReactiveComponent {
+    protected override GameObject Construct() {
+        var count = Remember(0);
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 2.pt
+            },
+
+            Children = {
+                new Label {
+                    FontSize = 9f,
+                    sText = count.Map(x => x.ToString())
+                },
+
+                new BsPrimaryTextButton {
+                    Text = "+1",
+                    OnClick = () => count.Value++
+                }
+            }
+        }.Use();
+    }
+}
+```
+</Playground>
+
+The component fills the view and stays up to date from then on. Press the button and the number goes up.
+Here is what each part does:
+
+- **`Remember(0)`** creates a state, a value that tells whatever reads it when it changes.
+- **`new Layout`** is the root, a flex column that centers its children with a gap between them.
+- **`sText`** binds the label's text to the state, so the label updates whenever the count changes.
+- **`OnClick`** only changes the state. The button doesn't know a label exists.
+- **`.Use()`** builds the tree and returns its root `GameObject`, which is what `Construct` has to return.
+
+### Showing it in the game
+
+A component goes on screen by calling `Use(transform)`, which places it under any UI transform. First, create it in a
+view controller:
+
+```csharp
+public class CounterViewController : ViewController {
+    private void Awake() {
+        new Counter().Use(transform);
+    }
+}
+```
+
+Then show that view controller the way your mod shows any other. With SiraUtil, bind it in a menu installer and present
+it from your flow coordinator:
+
+```csharp
+Container
+    .Bind<CounterViewController>()
+    .FromNewComponentAsViewController()
+    .AsSingle();
+```
+
+That's it.

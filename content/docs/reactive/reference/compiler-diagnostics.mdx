@@ -1,0 +1,22 @@
+---
+title: "Compiler Diagnostics"
+description: Every warning and error Reactive.Compiler reports, and what to do about it.
+---
+
+`Reactive.Compiler` runs inside the C# compiler and reports these as build diagnostics. [Source Generator and Analyzers](/docs/reactive/under-the-hood/compiler)
+explains what it generates. This page is only the messages.
+
+| Id | Message | Fix |
+| --- | --- | --- |
+| `RV001` | Incomplete pattern | A `[StateGen(Patterns = ...)]` entry has no rule. Every pattern needs a `{}` and an identifier around it, like `s{}` or `state_{}`. |
+| `RV002` | Invalid pattern | Same as above, but the pattern has the wrong shape. |
+| `RV004` | Property is a raw state | Informational. A `[RawState]` property receives the state object itself; binding and unbinding it is your job. |
+| `RV005` | Raw states must be `IState<T>` | A `[RawState]` property has to be typed as `IState<T>` (or a type implementing it). |
+| `RV006` | Generated binding used outside its generation context | An `s`-property is used somewhere that doesn't generate it, so it only exists because another usage did. Assign the state inside an object initializer in a `[StateGen]` member instead. |
+| `RV102` | Required property must be initialized | An object initializer is missing a `[Required]` property. Set it, or bind its `s`-version, which counts. |
+| `RV103` | Shadowed property doesn't exist | `[SetsRequired(Names = [...])]` names a property the target type doesn't have. |
+| `RV104` | Property is required and sets required members | A property can be one or the other, not both. |
+| `RV105` | Static property cannot be required | Remove `[Required]` from the static property. |
+| `RV106` | Property in a static class cannot be required | Same. |
+| `RV107` | Required properties must be initialized in a public parameterless constructor | A type with `[Required]` properties needs a public parameterless constructor, which the generator adds unless you declared a different one. Remove yours or make it parameterless and public. |
+| `RV108` | State is captured instead of being passed as a dependency | A lambda given to `RememberDerived` (or another `[NoStateCapture]` parameter) reads a state from outside. Add the state to the argument list and take it as a parameter, or the result won't follow it. |

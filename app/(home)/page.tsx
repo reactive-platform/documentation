@@ -1,5 +1,4 @@
 import { Card } from 'fumadocs-ui/components/card';
-import Image from 'next/image';
 import Link from 'next/link';
 
 export default function HomePage() {
@@ -15,7 +14,7 @@ export default function HomePage() {
           where your logic lives.
         </p>
         <Link
-          href="/docs"
+          href="/docs/reactive"
           className="mb-16 inline-flex h-12 items-center justify-center rounded-lg bg-fd-primary px-6 text-base font-semibold text-fd-primary-foreground transition-colors hover:bg-fd-primary/90"
         >
           Get Started
@@ -26,49 +25,25 @@ export default function HomePage() {
             <Card
               className="flex-grow"
               title="Getting Started"
-              description="Learn the fundamentals, see examples, and understand why it's a great choice over BSML."
-              href="/docs"
+              description="The references to add and a first component on screen."
+              href="/docs/reactive/getting-started"
             />
-            <div className="mt-4 overflow-hidden rounded-lg">
-              <Image
-                src="https://placehold.co/600x400/000000/FFFFFF/png"
-                alt="Placeholder"
-                width={600}
-                height={400}
-              />
-            </div>
           </div>
           <div className="flex flex-col">
             <Card
               className="flex-grow"
-              title="Layout System"
-              description="Build flexible and responsive layouts with the powerful, Flexbox-based Yoga engine."
-              href="/docs/layout"
+              title="Try it in the browser"
+              description="The Playground runs real Reactive components with nothing to install."
+              href="/playground"
             />
-            <div className="mt-4 overflow-hidden rounded-lg">
-              <Image
-                src="https://placehold.co/600x400/000000/FFFFFF/png"
-                alt="Placeholder"
-                width={600}
-                height={400}
-              />
-            </div>
           </div>
           <div className="flex flex-col">
             <Card
               className="flex-grow"
-              title="Core Components"
-              description="Explore the essential building blocks like Labels, Buttons, Images, and more."
-              href="/docs/components/label"
+              title="Beat Saber SDK"
+              description="Every styled component with an example: buttons, toggles, sliders, dropdowns, modals and more."
+              href="/docs/sdk"
             />
-            <div className="mt-4 overflow-hidden rounded-lg">
-              <Image
-                src="https://placehold.co/600x400/000000/FFFFFF/png"
-                alt="Placeholder"
-                width={600}
-                height={400}
-              />
-            </div>
           </div>
         </div>
       </main>

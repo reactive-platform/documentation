@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build": "next build",
+    "build:playground": "node playground/build.mjs",
     "dev": "next dev --turbo",
     "start": "next start",
     "postinstall": "fumadocs-mdx"

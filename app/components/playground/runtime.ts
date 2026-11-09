@@ -96,7 +96,7 @@ export class Compiler {
         this.worker = new Worker(PLATFORMS[platform].worker, { type: 'module' });
         this.worker.onmessage = ({ data }) => this.onMessage(data);
         this.worker.onerror = () => {
-            this.setStatus({ kind: 'failed', text: 'The playground runtime is missing, run playground/build.ps1' });
+            this.setStatus({ kind: 'failed', text: 'The playground runtime is missing, run yarn build:playground' });
         };
     }
 

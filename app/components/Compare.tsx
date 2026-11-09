@@ -46,7 +46,7 @@ export default function Compare({children}: {children: ReactNode}) {
     const side = reactive ? picked : 'BSML';
 
     return (
-        <div className="not-prose my-6 overflow-hidden rounded-xl border border-fd-border bg-fd-card text-sm [&_figure]:my-0 [&_figure]:rounded-none [&_figure]:border-0 [&_figure]:shadow-none">
+        <div className="not-prose my-8 overflow-hidden rounded-xl border border-fd-border bg-fd-card text-sm [&_figure]:my-0 [&_figure]:rounded-none [&_figure]:border-0 [&_figure]:shadow-none">
             <div className="flex min-h-10.5 items-center border-b border-fd-border px-2 text-xs text-fd-muted-foreground">
                 {reactive ? (
                     <div role="group" aria-label="Framework" className={SEGMENTS}>

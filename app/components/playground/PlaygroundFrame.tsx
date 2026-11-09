@@ -315,7 +315,7 @@ export default function PlaygroundFrame({ files: filesJson, lang, preview, alt, 
     ];
 
     return (
-        <div className="playground-frame not-prose my-6 overflow-clip rounded-lg border border-fd-border bg-fd-card">
+        <div className="playground-frame not-prose my-8 overflow-clip rounded-lg border border-fd-border bg-fd-card">
             {canRun && (
             <div className={`relative h-96 overflow-hidden ${live && shown ? 'bg-[#0f0f13]' : 'bg-[#1c1c21]'}`}>
                 <div ref={previewHost} className="h-full w-full" hidden={!live} />

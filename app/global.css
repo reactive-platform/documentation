@@ -1,3 +1,8 @@
 @import 'tailwindcss';
 @import 'fumadocs-ui/css/neutral.css';
 @import 'fumadocs-ui/css/preset.css';
+
+/* The same space around a plain code block as around every other code container */
+.prose > figure.shiki {
+  margin-block: 2rem;
+}

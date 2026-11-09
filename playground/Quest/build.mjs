@@ -231,7 +231,7 @@ async function main() {
 
     await pool.close();
 
-    const output = resolve(HERE, '../../public/reactive-playground/quest');
+    const output = resolve(HERE, '../../public/playground/quest');
     rmSync(output, { recursive: true, force: true });
     mkdirSync(output, { recursive: true });
 

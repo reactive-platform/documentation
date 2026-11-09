@@ -1,4 +1,4 @@
-// Builds the browser runtimes into public/reactive-playground on Windows, Linux and macOS.
+// Builds the browser runtimes into public/playground on Windows, Linux and macOS.
 //
 //   node playground/build.mjs [--reactive-repo <path>] [--quest-repo <path>]
 //                             [--yoga-binding <path>] [--rebuild-yoga] [--skip-quest]
@@ -20,7 +20,7 @@ const IS_WINDOWS = process.platform === 'win32';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = dirname(HERE);
 const DEPS = join(HERE, 'deps');
-const OUTPUT = join(ROOT, 'public', 'reactive-playground');
+const OUTPUT = join(ROOT, 'public', 'playground');
 
 const { values: args } = parseArgs({
     options: {

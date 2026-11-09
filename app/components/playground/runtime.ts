@@ -4,7 +4,7 @@
  * frame is created per example when it is first compiled.
  */
 
-export const RUNTIME_URL = '/reactive-playground';
+export const RUNTIME_URL = '/playground';
 
 export const PLATFORMS = {
     pc: {

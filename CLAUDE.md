@@ -32,6 +32,7 @@ in-browser Playground. The docs cover Reactive 2.0.0.
   "Try this demo".
 - Use inline code only when it's really needed, like for an identifier the reader would type. Describe everything else
   in words, so `Reactive.Compiler` becomes "the Reactive compiler".
+- Never mark a single symbol with inline code. Write the b slider, s-property or here 0 as plain text.
 - Avoid using semicolons everywhere.
 - Don't add difficulty levels.
 - The manifest example uses `"Reactive": "^2.0.0"`, while `Reactive.Compiler` stays at `1.0.0`.
@@ -48,8 +49,8 @@ These apply to every C# example in `content/docs`, new or edited.
 - Prefer tall over wide, with lines of about 80 characters.
 - Split wide object initializers, `Map` lambdas and ternaries the same way.
 - Prefer showing code by default, hide it only in places with lots of code that rather let you try it out than learn.
-- Show code that fails to compile in `<CompileExample compiles={false} output="...">`, with the real error as `output`.
-  Show its fix in a separate `<CompileExample compiles>` block, since each block has one state. Get the error by compiling
+- Show code that fails to compile in `<CompileExample status="error" output="...">`, with the real error as `output`.
+  Show its fix in a separate `<CompileExample status="compiles">` block, since each block has one state. Get the error by compiling
   the exact code with `dotnet build`, not from memory. The Playground reports `RV` errors but still runs that code, so it
   can't confirm they fail.
 - Explain why code fails right after its failing block, between it and the fix. Don't save the explanation for the end.

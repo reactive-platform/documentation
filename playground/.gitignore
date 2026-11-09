@@ -1,6 +1,6 @@
 deps/
 bin/
 obj/
-native/yoga.a
-native/obj/
+Yoga/yoga.a
+Yoga/obj/
 Reactive/YogaNative.g.cs

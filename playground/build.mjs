@@ -178,7 +178,7 @@ function createEmscriptenEnvironment({ sdk, node, cache, python }) {
 }
 
 function buildYoga() {
-    const library = join(HERE, 'native', 'yoga.a');
+    const library = join(HERE, 'Yoga', 'yoga.a');
     if (!args['rebuild-yoga'] && existsSync(library)) return;
 
     const binding = getYogaBinding();
@@ -186,13 +186,13 @@ function buildYoga() {
     const env = createEmscriptenEnvironment(emscripten);
     const tool = (name) => join(emscripten.sdk, 'emscripten', IS_WINDOWS ? `${name}.bat` : name);
 
-    const objects = join(HERE, 'native', 'obj');
+    const objects = join(HERE, 'Yoga', 'obj');
     mkdirSync(objects, { recursive: true });
 
     const sources = [
         ...listFiles(join(binding, 'lib', 'yoga', 'yoga')).filter((x) => extname(x) === '.cpp'),
         join(binding, 'src', 'bindings.cpp'),
-        join(HERE, 'native', 'bridge.cpp'),
+        join(HERE, 'Yoga', 'bridge.cpp'),
     ];
 
     const built = sources.map((source) => {
@@ -221,7 +221,7 @@ function generateYogaNative(reactive) {
     for (const name of ['YGConfigSetLogger', 'YGNodeSetMeasureFunc']) {
         const pattern = new RegExp(`\\[DllImport[^\\]]*\\]\\s*public static extern \\S+ ${name}\\([^)]*\\);`, 'gi');
         if (!source.match(pattern)) {
-            throw new Error(`YogaNative.cs no longer imports ${name}, native/YogaNative.Bridge.cs needs another look`);
+            throw new Error(`YogaNative.cs no longer imports ${name}, Yoga/YogaNative.Bridge.cs needs another look`);
         }
         source = source.replace(pattern, '');
     }

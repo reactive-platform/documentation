@@ -4,6 +4,6 @@
         <WasmBuildNative>true</WasmBuildNative>
     </PropertyGroup>
     <ItemGroup>
-        <NativeFileReference Include="..\native\yoga.a" />
+        <NativeFileReference Include="..\Yoga\yoga.a" />
     </ItemGroup>
 </Project>

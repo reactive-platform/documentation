@@ -150,7 +150,7 @@ the `Text` property on `Label`. It then generates an extension property that sub
 
 Because the generator works from usage, it only looks inside methods marked `[StateGen]`. If you try to use `sText` without this attribute, you'll get an error:
 
-<CompileExample compiles={false} output="App.cs(10,13): error CS0117: 'Label' does not contain a definition for 'sText'">
+<CompileExample status="error" output="App.cs(10,13): error CS0117: 'Label' does not contain a definition for 'sText'">
 ```csharp
 class App : ReactiveComponent {
     protected override GameObject Construct() {
@@ -171,7 +171,7 @@ class App : ReactiveComponent {
 The generator never looks inside this helper, so `sText` is never generated and `Label` has no such member. But if another
 usage has already generated this binding, you get `RV006` instead, like in this assignment outside an initializer:
 
-<CompileExample compiles={false} output="App.cs(12,13): error RV006: 'sText' is a generated binding, but this usage doesn't generate it, so it depends on another usage to exist. Assign a state to it inside an object initializer of a [StateGen] member instead.">
+<CompileExample status="error" output="App.cs(12,13): error RV006: 'sText' is a generated binding, but this usage doesn't generate it, so it depends on another usage to exist. Assign a state to it inside an object initializer of a [StateGen] member instead.">
 ```csharp
 class App : ReactiveComponent {
     protected override GameObject Construct() {
@@ -195,7 +195,7 @@ The initializer generates `sText`, but the assignment below it generates nothing
 initializer exists. The fix for both is to use the binding in an initializer of a `[StateGen]` method, so adding the
 attribute makes the helper compile:
 
-<CompileExample compiles>
+<CompileExample status="compiles">
 ```csharp
 class App : ReactiveComponent {
     protected override GameObject Construct() {
@@ -248,7 +248,7 @@ protected override GameObject Construct() {
 Each name binds the property it stands for, so `state_Text` binds `Text` and `stFontSize` binds `FontSize`. A pattern needs
 both `{}` and some text around it, and the build fails without them:
 
-<CompileExample compiles={false} output="App.cs(2,27): error RV002: Pattern 'state_{}{}' is not valid. It should contain an identifier and a {} to match, e.g. 'state_{}' or '{}State'.">
+<CompileExample status="error" output="App.cs(2,27): error RV002: Pattern 'state_{}{}' is not valid. It should contain an identifier and a {} to match, e.g. 'state_{}' or '{}State'.">
 ```csharp
 class App : ReactiveComponent {
     [StateGen(Patterns = ["state_{}{}"])]
@@ -291,7 +291,7 @@ While plain `.In()` only does a conversion, `.InLazy()` also skips the initial v
 
 Leave out `.In()` in this helper, which takes its state as a parameter, and the build fails:
 
-<CompileExample compiles={false} output="App.cs(11,21): error CS0029: Cannot implicitly convert type 'Reactive.IState<string>' to 'Reactive.Compiler.StateBinder<string, Reactive.IState<string>>'">
+<CompileExample status="error" output="App.cs(11,21): error CS0029: Cannot implicitly convert type 'Reactive.IState<string>' to 'Reactive.Compiler.StateBinder<string, Reactive.IState<string>>'">
 ```csharp
 class App : ReactiveComponent {
     protected override GameObject Construct() {
@@ -313,7 +313,7 @@ class App : ReactiveComponent {
 The error names both sides of the missing conversion: the state's `IState<string>` type and the `StateBinder` that `sText`
 expects. The state itself is fine, so this fixed version only adds `.In()` to build the binder directly:
 
-<CompileExample compiles>
+<CompileExample status="compiles">
 ```csharp
 class App : ReactiveComponent {
     protected override GameObject Construct() {

@@ -1,19 +1,25 @@
 ---
-title: "Derived and Computed State"
+title: "Derived States"
 description: "Building states from other states with Map and Where, combining several with RememberDerived, and MapSelf."
 ---
 
 ## Map and Where
 
-You rarely bind a state as it is. More often you want something computed from it. The query operators take a state
-and give back a new one, and the result binds, maps again and passes around exactly like the original.
+You rarely bind a state as it is, because more often you want something computed from it. `Map` and `Where` take a state
+and give back a new one, and the result binds, maps again and gets passed around like the original.
+
+Try this slider, where one number drives a word, its color and the last even number you landed on:
 
 <Playground>
 ```csharp excerpt
 var number = Remember(4);
 
-var word = number.Map(x => words[x]);
-var color = number.Map(x => Color.HSVToRGB(x / 12f, 0.75f, 1f));
+var word = number.Map(x => Words[x]);
+var color = number.Map(x => Color.HSVToRGB(
+    x / 12f,
+    0.75f,
+    1f
+));
 var even = number.Where(x => x % 2 == 0);
 ```
 ```csharp
@@ -27,7 +33,11 @@ class Queries : ReactiveComponent {
         var number = Remember(4);
 
         var word = number.Map(x => Words[x]);
-        var color = number.Map(x => Color.HSVToRGB(x / 12f, 0.75f, 1f));
+        var color = number.Map(x => Color.HSVToRGB(
+            x / 12f,
+            0.75f,
+            1f
+        ));
         var even = number.Where(x => x % 2 == 0);
 
         return new Layout {
@@ -69,37 +79,42 @@ class Queries : ReactiveComponent {
 ```
 </Playground>
 
-`Map` returns a state that is always a function of its source. Several maps from one state can never disagree,
-because all of them update when the source does. The word and the color above are two views of the same number. The
-result cannot be written to. Its value is defined by the source, and the only way to change it is to change the
-source. A mapped state is also lazy. It does not recompute when the source changes. It recomputes when something
-reads it after the source changed, and caches the result until the next change. Map a state that nobody reads and
-the function never runs, so mapping is cheap enough to do freely.
+`Map` returns a state that's always a function of its source, so several maps from one state can never disagree. The word
+and the color above are two views of the same number. The result can't be written to, and the only way to change it is to
+change the source. A mapped state is also lazy, so it recomputes only when something reads it after the source changed,
+then caches the result until the next change. If nobody reads it the function never runs, so you can map freely.
 
-`Where` returns a state that copies its source only when the value passes the predicate. Otherwise it holds on to
-the last value that did. `even` above is the last even number the slider landed on, however many odd ones were passed
-on the way. Before anything has passed, it holds the source's initial value, whether or not that value matches. Unlike
-`Map`, `Where` filters when values are delivered rather than when they are read, so right after a write its value is
-still the old one until the end of the frame. That is rarely observable, but it is the one place the two differ. The
-two chain. `number.Where(x => x > 0).Map(x => 1f / x)` is a reciprocal that cannot divide by zero.
+`Where` copies its source only when the value passes a check, and otherwise holds on to the last value that did. In the
+example, `even` is the last even number the slider landed on, however many odd ones it passed on the way. Until a value
+passes, it holds the source's initial value, whether or not that value matches. Unlike `Map`, it updates when the change is
+[delivered](/docs/reactive/state/states#how-changes-are-delivered) rather than when it's read, so right after a write it
+still holds the old value until later in the frame. The two also chain, so `number.Where(x => x > 0).Map(x => 1f / x)`
+skips zero, as long as the source doesn't start there.
 
-Both are extension methods on `IState<T>`, so they work on every kind of state, including derived states, animated
-states and cell contexts. Each returns an `IDisposable` wrapper that unsubscribes from the source when disposed. You
-only need that when a query outlives its component. Otherwise the wrapper, its subscription and the component are
-collected together.
+Both are extension methods on `IState<T>`, so they work on every kind of state, including derived states, animated states
+and cell contexts. Each result can also be disposed to unsubscribe from its source. You only need that when the source
+lives longer than the component, because otherwise they're all collected together.
 
 ## Derived states
 
-`Map` takes one input. For a value that depends on several, `RememberDerived` takes up to eight states and a function
-of their values, in the same order.
+`Map` takes one input. For a value that depends on several, `RememberDerived` takes up to eight states and a function of
+their values, in the same order.
+
+Below you can see the same sum built with `RememberDerived` and with a `Map` that reads b from inside:
 
 <Playground>
 ```csharp excerpt
 var a = Remember(3f);
 var b = Remember(4f);
 
-var sum = RememberDerived(a, b, (x, y) => x + y);
-var text = RememberDerived(a, b, (x, y) => $"{x:0} + {y:0} = {x + y:0}");
+var sum = RememberDerived(
+    a,
+    b,
+    predicate: (x, y) => $"{x:0} + {y:0} = {x + y:0}"
+);
+
+// Follows a only, so moving b doesn't update it
+var captured = a.Map(x => $"{x:0} + {b.Value:0} = {x + b.Value:0}");
 ```
 ```csharp
 class Derived : ReactiveComponent {
@@ -107,9 +122,13 @@ class Derived : ReactiveComponent {
         var a = Remember(3f);
         var b = Remember(4f);
 
-        var sum = RememberDerived(a, b, (x, y) => $"{x:0} + {y:0} = {x + y:0}");
+        var sum = RememberDerived(
+            a,
+            b,
+            predicate: (x, y) => $"{x:0} + {y:0} = {x + y:0}"
+        );
 
-        // Follows a only: b is read once and never heard from again
+        // Follows a only, so moving b doesn't update it
         var captured = a.Map(x => $"{x:0} + {b.Value:0} = {x + b.Value:0}");
 
         return new Layout {
@@ -121,12 +140,14 @@ class Derived : ReactiveComponent {
             },
 
             Children = {
-                new Label { FontSize = 5f, sText = sum },
+                new Label {
+                    FontSize = 4f,
+                    sText = sum.Map(x => $"Follows a and b: {x}")
+                },
 
                 new Label {
-                    FontSize = 3f,
-                    Color = Color.white with { a = 0.6f },
-                    sText = captured.Map(x => $"with a captured b: {x}")
+                    FontSize = 4f,
+                    sText = captured.Map(x => $"Follows only a: {x}")
                 },
 
                 CreateSlider(
@@ -156,31 +177,44 @@ class Derived : ReactiveComponent {
 ```
 </Playground>
 
-`sum` updates when either input changes. Like `Map`, it recomputes lazily and once, however many of its inputs changed
-in the same frame. It can never see one input updated and the other not, because the computation happens at delivery,
-and by then both writes have landed. `StateUtils.RememberDerived` does the same outside a component, and
-`DerivedState<T1, ..., T>` is the type if you want to name it.
+Notice that the second line doesn't change when you move the b slider. It reads b from inside a `Map`, so it only
+follows the a slider and catches up when that one changes. Inputs have to be parameters rather than captures, because a
+state can only follow what it was told about.
 
-The inputs are parameters rather than captures. That is a correctness requirement, not a style choice. The second
-line in the example, `a.Map(x => ... b.Value ...)`, compiles and is wrong. Move the `b` slider and it doesn't change.
+`Map` has no check for this, but `RememberDerived` warns you when its function reads a state from outside its parameters,
+and this code gets that warning:
 
-`captured` only follows `a`. It has no idea `b` exists. It read `b` once, and when `b` changes nothing tells `sum` to
-recompute. A derived state can only follow what it was told about. The compiler enforces this. The function parameter
-of `RememberDerived` is marked `[NoStateCapture]`, and a lambda that reads a state from outside its own parameters is
-reported as `RV108`, with a message telling you to pass the state as a dependency. The fix is always the same: add
-the state to the argument list and take it as a parameter.
+<CompileExample status="warning" output="App.cs(6,28): warning RV108: 'b' is a state captured by the closure, pass it as a dependency instead so its changes are tracked">
+```csharp
+var a = Remember(3f);
+var b = Remember(4f);
 
-The last query is for an edge case. `state.MapSelf()` returns a state whose value is the state itself, and it
-notifies whenever the original changes. It exists for reading something other than `Value` in a place that only
-receives values. The common case is an animated state's `IsFinished` or `TargetValue` inside a `RememberDerived`.
+var sum = RememberDerived(
+    a,
+    predicate: x => x + b.Value
+);
+```
+</CompileExample>
+
+The build still succeeds, so the sum just stays out of date until the a state changes. The fix is always the same: add the state to
+the argument list and take it as a parameter.
+
+In the demo, `sum` updates when either input changes. Like `Map` it recomputes lazily, so two inputs changing in the same frame cost one
+computation with both new values, unless your code reads it between the two writes.
+
+## MapSelf
+
+The last query is for an edge case. `state.MapSelf()` returns a state whose value is the state itself, and it notifies
+whenever the original changes. It's for reading something other than `Value` in a place that only receives values, most
+often an animated state's `IsFinished` or `TargetValue` inside `RememberDerived`, like in this snippet:
 
 ```csharp
 var shown = RememberDerived(
     anim.MapSelf(),
     color,
-    (a, c) => a.IsFinished ? c : a.TargetValue
+    predicate: (self, c) => self.IsFinished ? c : self.TargetValue
 );
 ```
 
-Without `MapSelf` the lambda would receive the animated state's current value and have no way to reach the state
-itself. With it, the lambda receives the state and still re-runs whenever the state changes.
+Without `MapSelf` the function would only get the animated state's current value, with no way to reach the state itself.
+With it, the function receives the state and still re-runs whenever the state changes.

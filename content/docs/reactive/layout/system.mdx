@@ -5,10 +5,11 @@ description: "Controllers, modifiers, leaves and roots, showing and hiding, what
 
 ## Controllers and modifiers
 
-Reactive's layout is abstract. A container holds children. A separate object, its **controller**, places them. Each
-child describes how it wants to be placed through another object, its **modifier**. Flexbox, through Meta's Yoga, is
-the controller that ships with the library, but the model doesn't know that, and this separation is what the rest of
-the page follows from.
+Reactive separates what a container holds from how it's arranged. A container holds children, a separate object called
+its **controller** places them, and each child describes how it wants to be placed through its own **modifier**. Flexbox,
+through Meta's Yoga, is the controller that ships with the library, but nothing in the model depends on it.
+
+Here's a typical layout that sets both:
 
 ```csharp
 new Layout {
@@ -26,25 +27,24 @@ new Layout {
 }
 ```
 
-Read it as two sentences. `FlexController` is this layout's controller, a `YogaLayoutController`, and it is about
-*the children*: stack them in a column, center them, leave a gap. `FlexItem` is this layout's modifier, a
-`YogaModifier`, and it is about *this layout inside its parent*: forty points wide, please. Everything you would put on
-a flex container in CSS lives on the controller, such as `JustifyContent`, `AlignItems`, `FlexWrap`, `Padding` and
-`Gap`. Everything you would put on a flex item lives on the modifier, such as `Size`, `Flex`, `Margin`, `Position` and
-`AlignSelf`. Both are plain objects with settable properties, so every one of them can be bound to a state.
-[Flexboxes](/docs/reactive/layout/yoga) goes through them. The defaults follow the web rather than React Native, so a
-controller is a row unless told otherwise.
+`FlexController` is about the layout's children, and here it stacks them in a column, centers them and leaves a gap.
+`FlexItem` is about the layout inside its parent, and here it asks for forty points of width. Everything you'd put on a
+flex container in CSS lives on the controller, such as `JustifyContent`, `AlignItems`, `FlexWrap`, `Padding` and `Gap`.
+Everything you'd put on a flex item lives on the modifier, such as `Size`, `Flex`, `Margin`, `Position` and `AlignSelf`.
+Both are plain objects with settable properties, so every property can be bound to a state. A controller is a row unless
+told otherwise, like on the web, and [Flexboxes](/docs/reactive/layout/yoga) goes through the rest.
 
-Both objects are created the first time you touch them. A container that never uses layout never creates a Yoga
-node and costs nothing. The flip side is the one trap on this page: `FlexController = { }` with nothing inside never
-runs the getter, so it creates nothing. Set at least one property, or use `.AsFlexGroup()` and `.AsFlexItem()`, which
-take the same properties as optional arguments and exist for exactly this case. `FlexController` is itself a shorthand
-for `LayoutController = new YogaLayoutController()`, and `LayoutController` accepts any `ILayoutController`.
-[Your own Layout Controller](/docs/reactive/layout/custom) is about controllers that aren't flexbox.
+Both objects are created the first time you touch them, so a container that never uses layout never creates a Yoga node.
+The flip side is a trap: `FlexController = { }` with nothing inside never runs the getter, so it creates nothing. Set at
+least one property, or use `.AsFlexGroup()` and `.AsFlexItem()`, which take the same properties as optional arguments.
+`FlexController` is a shorthand for `LayoutController = new YogaLayoutController()`, and `LayoutController` accepts any
+`ILayoutController`, as [Your own Layout Controller](/docs/reactive/layout/custom) explains.
 
-Now the rule that differs from the web. In Yoga, as in a browser, every node is a container and an item at the same
-time. In Reactive, **a container without a controller doesn't lay out its children at all.** The children keep
-whatever rect they have, and their modifiers are ignored, because there is nobody to read them.
+The next rule differs from the web. In Yoga, as in a browser, every node is a container and an item at the same time. In
+Reactive, **a container without a controller doesn't lay out its children at all**, so they keep whatever rect they have
+and nobody reads their modifiers.
+
+This label isn't laid out, because the background around it has no controller:
 
 ```csharp
 new Background {
@@ -58,9 +58,10 @@ new Background {
 
 <Screenshot src="/assets/layout/containers-1.png" alt="A background at Unity's default size with a label sitting wherever its rect put it" />
 
-That label is not laid out. The background sits at Unity's default 100 by 100, and the label is wherever its own rect
-happened to be. Nothing is broken. Nothing was asked to lay anything out. Give the background a controller, even one
-with a single property set, and both snap into place.
+The background sits at Unity's default 100 by 100, and the label is wherever its own rect happened to be. Nothing is
+broken, since nothing was asked to lay anything out.
+
+Give the background a controller, even with a single property set, and both snap into place, as this version shows:
 
 ```csharp
 new Background {
@@ -78,37 +79,34 @@ new Background {
 
 <Screenshot src="/assets/layout/containers-2.png" alt="The background filling its parent with the label centered" />
 
-This is deliberate. It lets you mix laid-out content with things you position by hand, like a knob you drag around
-or a native Unity object with its own anchoring, and it means the layout engine costs nothing for the parts of a
-screen that don't need it. The practical consequence is that `FlexItem` on a child only means something if the parent
-has a `FlexController`. If a size you set is being ignored, check that first.
+This lets you mix laid-out content with things you position by hand, like a knob you drag around or a native Unity object
+with its own anchoring. It also means the layout engine costs nothing for the parts of a screen that don't need it. In
+practice, `FlexItem` on a child only means something if the parent has a `FlexController`, so check that first if a size
+you set is being ignored.
 
 ## Leaves and roots
 
-Two kinds of component sit at the edges of the model, and knowing which is which explains most sizing behaviour.
+Two kinds of component sit at the edges of this model, and knowing which is which explains most sizing behaviour.
 
-A **leaf** is a component with intrinsic content and no children. A `Label` is as big as its text, an `Image` as big
-as its sprite. A leaf is not sized by a controller of its own. Instead, it measures itself when the parent's
-controller asks, and the parent places it at that size. That is why a label in a column takes exactly the room its
-text needs, grows when the text changes, and never needs a `Size` unless you want to force one. A leaf's `FlexItem` can
-still set a size, a flex or a margin, and the parent honours those over the measured size.
+A **leaf** has intrinsic content and no children, so a `Label` is as big as its text and an `Image` as big as its sprite.
+It has no controller, and instead measures itself when the parent's controller asks. A label in a column takes exactly the
+room its text needs, grows when the text changes, and never needs a `Size` unless you want to force one. A leaf's
+`FlexItem` can still set a size, a flex or a margin, and the parent honours those over the measured size.
 
-So any component plays one of three roles. A container with a controller is sized by its children, its own modifier
-and its parent. A leaf is sized by measuring its content, its modifier and its parent. Anything else, such as a
-`Background` without a controller, measures as empty and is sized by its modifier and parent alone. A component is a
-container or a leaf, never both. A `Background` draws a sprite but is a container, so its size comes from what is
-inside it, not from the sprite. For a box exactly the size of a sprite, use an `Image`. Writing a leaf of your own, a
-component that wraps something with a natural size, means telling the host to measure through you.
-[Component Internals](/docs/reactive/under-the-hood/component#the-layout-component) covers it.
+So any component plays one of three roles. A container with a controller is sized by its children, its own modifier and
+its parent. A leaf is sized by measuring its content, its modifier and its parent. Anything else, such as a `Background`
+without a controller, measures as empty and is sized by its modifier and parent alone. A component is a container or a
+leaf, never both, so a `Background` takes its size from what's inside it rather than from its sprite. Use an `Image` for
+a box exactly the size of a sprite, and see [Component Internals](/docs/reactive/under-the-hood/component#the-layout-component)
+to write a leaf of your own.
 
-A **root** is a layout that nobody lays out: the top of a screen, or anything whose parent has no controller. No
-controller gives it a size, so it is sized against the rect of the transform it is attached to. A root under a view
-controller fills the view, which is right for a full screen and is what you get without asking. A component that
-leaves its parent's layout, by being disabled or through `IgnoreLayout`, becomes a root of its own and still lays out
-its children.
+A **root** is a layout that nobody lays out, like the top of a screen or anything whose parent has no controller. With no
+controller above to give it a size, it's sized against the rect of the transform it's attached to. A root under a view
+controller fills the view without you asking, which suits a full screen. A component that leaves its parent's layout
+through `IgnoreLayout` also becomes a root of its own and keeps laying out its children.
 
-For a popup, a tooltip or a floating panel you want the opposite, a box as big as its content. The constraint is per
-axis, and you turn it off on the root's controller.
+A popup, a tooltip or a floating panel needs the opposite, a box as big as its content. The constraint is per axis, and
+this root on a view controller's transform turns it off for both:
 
 ```csharp
 new Background {
@@ -126,40 +124,73 @@ new Background {
 
 <Screenshot src="/assets/layout/roots-2.png" alt="A background exactly the size of its label plus padding, sitting in a larger view" />
 
-Now the background is the label plus padding and nothing more, however big the view is. Turn off only one axis and
-you get, for example, a sidebar as wide as its content and as tall as the view. The two flags mean nothing on a layout
-inside another one, where the parent decides the size. They are the usual answer to "why is my root the wrong size".
+Now the background is the label plus padding, however big the view is. Turn off only one axis and you get, for example, a
+sidebar as wide as its content and as tall as the view. The two flags mean nothing on a flex layout inside another flex
+layout, where the parent decides the size. They're the usual answer when a root comes out the wrong size.
 
-A root's own modifier still counts, so a `Size` on a root is a fixed size. Its *position* is never touched. The layout
-system sets a root's rect size and leaves the anchors and the anchored position to you, which is what you want when
-you place a popup next to a button or drag a window around. The SDK's modals position their content root relative to
-an anchor for exactly this reason.
+A root's own modifier still counts, so a `Size` on a root is a fixed size. Its position is never touched, because the
+layout system sets a root's rect size and leaves the anchors and the anchored position to you. You want that when placing
+a popup next to a button or dragging a window around, and the SDK's modals position their content root this way.
 
 ## Nested layouts
 
-A screen is never one layout. It is a column of rows of columns, each with its own controller, three or four levels
-deep before you notice. The natural worry is that each level recalculates the ones below it. It doesn't. Directly
-nested flex layouts are **stitched**: the child joins the parent's native Yoga tree, its own children hang below it,
-and the root calculates the whole hierarchy in a single call. Leaves like labels are measured as part of the same
-pass, and Yoga caches their measurements. You get this for free from nesting `Layout`s, `Background`s, buttons,
-repeaters or anything else whose controller is flex. A deep screen doesn't get slower per level, and a change deep
-inside is one recalculation at the root rather than one per ancestor.
+A screen is never one layout, but a column of rows of columns, each with its own controller. You might worry that each
+level recalculates the ones below it, but it doesn't. Directly nested flex layouts are **stitched**, so the root
+calculates the whole hierarchy in a single call.
 
-A controller of another kind can't join the parent's tree, so it forms a tree of its own, and the parent treats that
-subtree as a single leaf. The parent measures it when its size isn't fixed, and when the parent hands it a size, the
-subtree lays itself out within it. That is how any layout algorithm can sit inside flexbox and flexbox inside it, at
-the cost of a measuring pass at the boundary. [Your own Layout Controller](/docs/reactive/layout/custom) shows both
-directions with a radial controller, and the mechanism, contexts claimed between controllers of the same type, is
-explained in [Layout Engine Internals](/docs/reactive/under-the-hood/layout#stitching).
+<Alert>
+    Stitching is attaching a child layout's node to its parent's Yoga tree instead of giving the child a tree of its own.
+    All the nested layouts then form one native tree that Yoga calculates in one go.
+</Alert>
 
-## Showing, hiding and opting out
+Leaves like labels are measured in the same pass, and Yoga caches their measurements. Nesting `Layout`s, `Background`s, buttons or repeaters gets you this
+for free, as long as their controller is flex. A change deep inside a screen is one recalculation at the root rather than
+one per ancestor.
 
-Showing and hiding is `Enabled`. Since it is a property, it is `sEnabled` with a `bool` state. What is less obvious is
-what happens to the space a hidden component was taking. By default a disabled component leaves its parent's layout.
-The controller stops placing it, and the content after it moves up to fill the gap. That is usually what you want,
-and it is what makes a conditional section of a form collapse cleanly. When something toggles often and the content
-jumping around every time is worse than a gap, `WithinLayoutIfDisabled` keeps the component's space while it is
-hidden.
+A controller of another kind can't join the parent's tree, so it forms its own, and the parent treats that subtree as a
+single leaf. The parent measures it when its size isn't fixed, and the subtree lays itself out within whatever size it's
+given. Any layout algorithm can sit inside flexbox this way, and flexbox inside it, at the cost of a measuring pass at the
+boundary. [Your own Layout Controller](/docs/reactive/layout/custom) shows both directions with a radial controller, and
+[Layout Engine Internals](/docs/reactive/under-the-hood/layout#stitching) explains the mechanism.
+
+This diagram draws a small screen as trees, with the flex layouts joined into one and the radial controller keeping its own:
+
+```mermaid
+flowchart TB
+    subgraph yoga["One Yoga tree, calculated once at the root"]
+        root["Column (the root)"] --> label1["Label"]
+        root --> row["Row"]
+        row --> column["Column"]
+        column --> label2["Label"]
+        column --> image1["Image"]
+    end
+
+    subgraph own["Its own tree, a single leaf to its parent"]
+        radial["Radial controller"] --> image2["Image"]
+        radial --> image3["Image"]
+    end
+
+    row -. "measures" .-> radial
+
+    style yoga fill:#0ea5e91a,stroke:#0ea5e9
+    style own fill:#f59e0b1a,stroke:#f59e0b
+```
+
+## Opting out of layout
+
+There are two ways to take a component out of its parent's layout, and they differ in whether it stays visible.
+
+### Hiding components
+
+To hide a component, turn off its `Enabled` property. It then leaves its parent's layout, so the parent's controller stops
+placing it and the space it took is freed. Everything after it moves up to fill the gap, and any siblings with a `Flex`
+share the free space. When the component is shown again, it goes back to the same place among its siblings. While it's
+hidden it doesn't lay out its own children, and it catches up once it's shown. That suits something like an optional
+section of a form, where the whole form closes up around it. However, if a component toggles often and the jumping looks
+worse than an empty space, set `WithinLayoutIfDisabled` to true. The controller then keeps placing it while it's hidden,
+so it holds on to its space and nothing around it moves.
+
+Try this demo, where one toggle hides the middle block in both columns:
 
 <Playground showCode preview="/assets/layout/visibility.gif">
 ```csharp
@@ -259,72 +290,122 @@ partial class Visibility {
 ```
 </Playground>
 
+Notice that the left column closes up when the block hides, while the right one keeps the gap. An empty component isn't
+hidden, though. A `Label` with an empty `Text` is still part of the layout and still takes up one line of height, so a
+column of labels keeps a blank row for it. To remove the row, you have to disable the label as well.
 
-Hiding and emptying are not the same. A `Label` whose `Text` is set to an empty string is still there. It measures
-as zero wide and one line tall, so a column of labels keeps a line's worth of space for it. To make a line disappear,
-disable the label instead of emptying it. `sEnabled = text.Map(x => x.Length > 0)` next to `sText = text` is the
-usual pair.
+### Ignoring the layout
 
-`IgnoreLayout = true` takes a *visible* component out of its parent's layout on purpose. The parent's controller
-stops placing it, it keeps whatever rect it has, and you position it with the transform's anchors and position. It is
-the escape hatch for the odd thing that isn't flexbox-shaped. It is different from `PositionType.Absolute`, which
-keeps the parent in charge but takes the item out of the flow, and which is almost always the better tool for an
-overlay or a badge. Either way, a component that has left its parent's layout still lays out its own children. It has
-become a root of its own, sized against its rect rather than by a parent.
+`IgnoreLayout` takes a component out of its parent's layout while keeping it visible. The parent's controller stops placing
+it and reading its `FlexItem`, and its neighbours close up as if it weren't there. Since nobody sizes it anymore, it keeps
+whatever rect it has, so you set its size and position yourself through its transform. 
 
-## Measuring and reading sizes back
+In the example below, a toggle turns `IgnoreLayout` on and off for the orange block:
 
-A leaf is measured through Yoga's measure modes. `Exactly` imposes a length, which is what a stretched item gets on
-its cross axis. `AtMost` caps the length, which is what a wrapped row gives its children. `Undefined` asks for the
-natural size. Yoga caches the results against the constraints, so a label is measured when its text changes and not
-on every pass. Changing a label's text every frame is fine. It re-measures once per frame, when the frame lays out,
-however often the text was written. A `Table` measures only its first cell and assumes the rest have the same size
-along the scroll axis, so table cells get a fixed size on that axis. Scale is not layout. A component that grows
-through `localScale`, as a hover effect does, doesn't push its neighbours, because the layout sees its rect, not its
-transform.
-
-Whatever the layout decides ends up on the `RectTransform`, so once the frame has run, `ContentTransform.rect` has
-the final size. Two hooks say when that happened. `LayoutAppliedEvent` on any item fires every time the layout is
-applied to it, and `OnLayoutApply` is the same from inside a component. Both fire only for sizes the layout system
-applied. `OnRectDimensionsChanged` also fires for a rect changed from outside.
-
+<Playground showCode preview="/assets/layout/ignore-layout.gif">
 ```csharp
-new Background { ... }
-    .With(x => {
-        x.LayoutAppliedEvent += _ =>
-            width.Value = x.ContentTransform.rect.width;
-    });
+class Ignoring : ReactiveComponent {
+    protected override GameObject Construct() {
+        var ignored = Remember(false);
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                Padding = new() { top = 4.pt },
+                Gap = 4.pt
+            },
+
+            Children = {
+                new BsToggle {
+                    OnToggleStateChanged = x => ignored.Value = x
+                }.InNamedRail("IgnoreLayout"),
+
+                new Background {
+                    FlexController = {
+                        FlexDirection = FlexDirection.Column,
+                        AlignItems = Align.Center,
+                        Padding = 2.pt,
+                        Gap = 1.pt
+                    },
+
+                    Sprite = BeatSaberResources.Sprites.background,
+                    PixelsPerUnit = 10f,
+                    Color = Color.white with { a = 0.12f },
+
+                    Children = {
+                        CreateBlock(),
+
+                        new Background {
+                            FlexItem = { Size = new() { x = 36.pt, y = 14.pt } },
+                            Sprite = BeatSaberResources.Sprites.background,
+                            PixelsPerUnit = 10f,
+                            Color = new Color(1f, 0.6f, 0.3f),
+                            sIgnoreLayout = ignored
+                        },
+
+                        CreateBlock()
+                    }
+                }
+            }
+        }.Use();
+    }
+
+    private static Background CreateBlock() {
+        return new Background {
+            FlexItem = { Size = new() { x = 24.pt, y = 8.pt } },
+            Sprite = BeatSaberResources.Sprites.background,
+            PixelsPerUnit = 10f,
+            Color = new Color(0.35f, 0.75f, 1f)
+        };
+    }
+}
 ```
+</Playground>
 
-Writing what you read there into a state is fine. It is the way to size something that isn't a flex item, such as a
-native Unity object, from the result of one that is. The frame runs layout again if the write changes anything and
-stops when nothing does, so a layout that feeds a state that feeds the same layout settles instead of looping, as long
-as it converges.
-
-A `YogaModifier` can also be built on its own and handed to a component with `.WithModifier(modifier)`. That installs
-the same object `FlexItem` would have created. It is useful when the same rules apply to several things, or when a
-helper builds a modifier before it knows what it will be attached to. The modifier raises its own update event, so a
-property changed on it after attachment still triggers a recalculation.
+Notice that when you turn it on, the blue blocks close up and the panel shrinks as if the orange block wasn't there, while
+the block itself keeps the rect it had. If an ignored component has its own controller, it becomes a root sized against its parent's rect and still lays
+out its children. Use `IgnoreLayout` when something has to be placed by hand, like a window you drag around. For an overlay
+or a badge, [`PositionType.Absolute`](/docs/reactive/layout/yoga#absolute-positioning) is almost always the better choice,
+because the parent still places the item without making room for it among the others.
 
 ## When layout runs
 
-Layout is not recalculated when a property changes. The change marks the layout dirty, and dirty layouts are
-recalculated once per frame, after state changes have been delivered and before the UI renders. Ten property changes
-recalculate once, and the order you set things in never matters. A layout is marked dirty when a controller or
-modifier property changes, when children are added or removed, when a child enters or leaves the layout by being
-enabled, disabled or ignored, when a leaf's content changes size, when a hidden component is shown after something
-changed while it was hidden, and when a root's rect is resized from outside the layout system. None of this needs your
-involvement. It is listed so you know what counts as a change.
+Changing a property doesn't recalculate layout. The change marks the layout dirty, and dirty layouts are recalculated once
+per frame, after state changes are delivered and before the UI renders. Ten property changes recalculate once, and the
+order you set things in never matters. A layout gets marked dirty when a controller or modifier property changes, when
+children are added or removed, and when a child is enabled, disabled or ignored. The same goes for a leaf whose content
+changes size, a hidden component shown after something changed while it was hidden, and a rect resized from outside the
+layout system. None of this needs your involvement, and the list is only here so you know what counts as a change.
 
-The order, states first and layout second, matters for one case. A binding on a layout property, say
-`sSize = state`, sets the modifier during state delivery. That marks the layout dirty, and the layout is recalculated
-in the same frame. A layout change that writes a state, as in the width example above, runs the other way round, and
-the frame repeats both steps until neither has work. [The Update Cycle](/docs/reactive/under-the-hood/frame) has the
-details.
+The order, states first and layout second, matters in one case. A binding on a layout property, like `sSize = state`, sets
+the modifier during state delivery, and the layout is recalculated in that same frame. A layout change that writes a state,
+as in the width snippet above, runs the other way round, so the frame repeats both steps until neither has work.
+[The Update Cycle](/docs/reactive/under-the-hood/frame) has the details.
 
-Two methods let you step outside the frame. `ReactiveScheduler.Run()` runs the whole frame's work right now, states
-and then layout, until both settle. Use it in the rare case where you need a measured size before the frame ends,
-like reading a rect right after building a tree. `RecalculateLayout()` on a root recalculates just that tree,
-immediately and without delivering states. On a node that is laid out by its parent it throws, because only the root
-can calculate the tree it belongs to. The thing to call there is `ScheduleLayoutRecalculation()`, which marks the
-node dirty for the next frame.
+One frame goes through these steps, from your code changing something to the UI being drawn:
+
+```mermaid
+flowchart TB
+    changes["Your code changes things"]
+    states["Deliver state changes"]
+    layout["Recalculate dirty layouts"]
+    render["Draw the UI"]
+
+    changes --> states
+    states --> layout
+    layout -- "created more work" --> states
+    layout -- "nothing left" --> render
+```
+
+<Alert>
+    This cycle runs at most 100 passes per frame. If states and layout keep scheduling each other past that, the library
+    logs an error and leaves the rest for the next frame.
+</Alert>
+
+Two methods let you step outside the frame. `ReactiveScheduler.Run()` runs the whole frame's work right now, states and
+then layout, until both settle, for the rare case where you need a measured size before the frame ends. It does nothing
+when called while that work is already running. `RecalculateLayout()` on a root recalculates just that tree, immediately
+and without delivering states. On a node laid out by its parent it throws, because only the root can calculate the tree it
+belongs to. Use `ScheduleLayoutRecalculation()` there, which marks the node dirty for the next layout run and is protected
+on anything but a `Layout`.

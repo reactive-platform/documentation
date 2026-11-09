@@ -4,21 +4,19 @@ description: "How a flex container places its children, the properties that stee
 ---
 
 <Alert>
-    This is a short tour, enough to lay out a screen. Flexbox has more to it, and the
+    This page is a short tour, enough to lay out a screen. Flexbox has more to it, and the
     [Yoga styling docs](https://www.yogalayout.dev/docs/styling) describe every property Reactive exposes.
 </Alert>
 
 ## How it works
 
-A flex container lines its children up along one axis, the **main axis**, which `FlexDirection` picks: a `Row`
-runs left to right, a `Column` top to bottom. The other axis is the **cross axis**. Three things then decide where
-each child ends up. `JustifyContent` spreads the children along the main axis when there is room to spare.
-`AlignItems` places them across it, and `Stretch` makes them fill it. `Gap` keeps a distance between neighbours and
-`Padding` keeps all of them away from the container's edges. When a row runs out of room, `FlexWrap` lets it continue
-on a new line instead of overflowing.
+A flex container lines its children up along one axis, called the **main axis**, which `FlexDirection` picks. A `Row`
+runs left to right and a `Column` runs top to bottom, and the other axis is the **cross axis**. `JustifyContent` spreads
+the children along the main axis when there's room to spare, and `AlignItems` places them across it. `Gap` keeps space
+between neighbours, and `Padding` keeps all of them away from the container's edges. When a row runs out of room,
+`FlexWrap` lets it continue on a new line instead of overflowing.
 
-Try them. The box below holds five blocks of different sizes, and every control writes a state that the container's
-properties are bound to.
+Try this sandbox, where five blocks of different sizes sit in a box and each control changes one of its properties:
 
 <Playground scale="1">
 ```csharp
@@ -245,10 +243,7 @@ partial class FlexSandbox {
             [Justify.FlexStart] = new("Start", null),
             [Justify.Center] = new("Center", null),
             [Justify.FlexEnd] = new("End", null),
-            [Justify.SpaceBetween] = new(
-            "Between",
-            null
-            ),
+            [Justify.SpaceBetween] = new("Between", null),
             [Justify.SpaceAround] = new("Around", null),
             [Justify.SpaceEvenly] = new("Evenly", null)
         };
@@ -270,30 +265,171 @@ partial class FlexSandbox {
 ```
 </Playground>
 
-Two of the defaults differ from React Native and follow the web instead: a container is a row unless told otherwise,
-and items don't shrink unless told to. `AlignItems` only has work to do when there is free space across the axis,
-and so does `JustifyContent` along it. The blocks above set a `MinSize` rather than a `Size`, because a fixed size
-can't stretch and a minimum can.
+A container is a row unless told otherwise, like on the web, but items don't shrink unless told to, like in React
+Native. `AlignItems` only has work to do when there's free space across the axis, and `JustifyContent` only when there's
+free space along it. The blocks above set a `MinSize` rather than a `Size`, because a fixed size can't stretch and a
+minimum can.
 
 ## Units
 
-A size, padding, margin, gap or position is a `YogaValue`. `12.pt` is twelve points, which are Unity units, and a bare
-`12f` means the same. `50.pct` is half of the parent. `YogaValue.Auto` sizes from the content and is the default.
-The other Yoga keywords exist as `"fit-content"`, `"max-content"` and `"stretch"` strings or the `YogaValue` constants
-of the same name.
+A size, padding, margin, gap or position is a `YogaValue`. `12.pt` is twelve points, which are Unity units, and a plain
+`12f` means the same. `50.pct` is half of the parent, and `YogaValue.Auto` sizes from the content and is the default.
+Yoga's other keywords are the `YogaValue.FitContent`, `YogaValue.MaxContent` and `YogaValue.Stretch` constants.
 
-A `YogaVector` holds a value per axis: `new() { x = 20.pt }` sets the width and leaves the height to the content, and a
-single value, `Size = 7.pt`, sets both. A `YogaFrame` holds a value per edge, `new() { left = 2.pt, right = 2.pt }`,
-and a single value fills all four.
+A `YogaVector` holds one value per axis, so `new() { x = 20.pt }` sets the width and leaves the height to the content.
+A single value like `Size = 7.pt` sets both axes at once. A `YogaFrame` holds one value per edge, like
+`new() { left = 2.pt, right = 2.pt }`, and a single value fills all four edges.
+
+In this demo, a slider sets the same number for two bars, in points for one and in percent of the box for the other:
+
+<Playground>
+```csharp excerpt
+CreateRow(
+    width: amount.Map(x => x.pt),
+    text: amount.Map(x => $"{x:0}.pt")
+),
+CreateRow(
+    width: amount.Map(x => x.pct),
+    text: amount.Map(x => $"{x:0}.pct")
+),
+
+// As wide as the label inside it
+new Background {
+    FlexItem = {
+        AlignSelf = Align.FlexStart,
+        Size = new() { x = YogaValue.Auto, y = 5.pt }
+    }
+}
+```
+```csharp
+class Units : ReactiveComponent {
+    protected override GameObject Construct() {
+        var amount = Remember(30f);
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 3.pt
+            },
+
+            Children = {
+                new Background {
+                    FlexController = {
+                        FlexDirection = FlexDirection.Column,
+                        AlignItems = Align.Stretch,
+                        Padding = 2.pt,
+                        Gap = 1.5f.pt
+                    },
+
+                    FlexItem = {
+                        Size = new() { x = 80.pt }
+                    },
+
+                    Sprite = BeatSaberResources.Sprites.background,
+                    PixelsPerUnit = 10f,
+                    Color = Color.white with { a = 0.08f },
+
+                    Children = {
+                        CreateRow(
+                            width: amount.Map(x => x.pt),
+                            text: amount.Map(x => $"{x:0}.pt")
+                        ),
+                        CreateRow(
+                            width: amount.Map(x => x.pct),
+                            text: amount.Map(x => $"{x:0}.pct")
+                        ),
+
+                        // As wide as the label inside it
+                        new Background {
+                            FlexController = {
+                                AlignItems = Align.Center,
+                                Padding = new() { left = 2.pt, right = 2.pt }
+                            },
+
+                            FlexItem = {
+                                AlignSelf = Align.FlexStart,
+                                Size = new() { x = YogaValue.Auto, y = 5.pt }
+                            },
+
+                            Sprite = BeatSaberResources.Sprites.background,
+                            PixelsPerUnit = 10f,
+                            Color = new Color(0.35f, 0.75f, 1f),
+
+                            Children = {
+                                new Label {
+                                    Text = "Auto",
+                                    FontSize = 3f,
+                                    Color = Color.black
+                                }
+                            }
+                        }
+                    }
+                },
+
+                new BsSlider {
+                    FlexItem = { Size = new() { x = 50.pt, y = 7.pt } },
+                    MinValue = 10f,
+                    MaxValue = 60f,
+                    ValueStep = 1f,
+                    Value = amount.Value,
+                    OnValueChanged = x => amount.Value = x
+                }
+            }
+        }.Use();
+    }
+
+    [StateGen]
+    private static Layout CreateRow(
+        IState<YogaValue> width,
+        IState<string> text
+    ) {
+        return new Layout {
+            FlexController = {
+                AlignItems = Align.Center,
+                Gap = 2.pt
+            },
+
+            Children = {
+                new Background {
+                    FlexItem = {
+                        sSize = width.Map(x => new YogaVector(
+                            x: x,
+                            y: 5.pt
+                        ))
+                    },
+
+                    Sprite = BeatSaberResources.Sprites.background,
+                    PixelsPerUnit = 10f,
+                    Color = new Color(0.35f, 0.75f, 1f)
+                },
+
+                new Label {
+                    sText = text.In(),
+                    FontSize = 3f,
+                    Color = Color.white with { a = 0.7f }
+                }
+            }
+        };
+    }
+}
+```
+</Playground>
+
+The same number gives two different widths, because the percent bar is measured against the box. The Auto
+bar below them doesn't change at all, and stays as wide as its label.
 
 ## Growing and shrinking
 
-An item's share of the leftover room is `FlexGrow`, and its share of the deficit when there isn't enough is
-`FlexShrink`. `Flex = 1` is the shorthand you'll actually use: grow 1, shrink 1, basis 0, meaning take an equal share.
-Two siblings with `Flex = 1` split a row. `Flex = 1` next to `Flex = 2` splits it one to two. A label filling the room
-next to a button, a table filling the room next to its scrollbar, a page next to a sidebar: all `Flex = 1`. `MinSize`
-and `MaxSize` clamp whatever the rest decided, which is also how you stop a growing item from being squeezed to
-nothing.
+`FlexGrow` is an item's share of the leftover room, and `FlexShrink` is its share of the shortfall when there isn't
+enough. Most of the time you'll use `Flex = 1`, which means grow 1 starting from nothing, so items take equal shares.
+Unlike CSS it doesn't also make the item shrink, because Reactive uses Yoga's defaults rather than the web's. Two
+siblings with `Flex = 1` split a row in half, and `Flex = 1` next to `Flex = 2` splits it one to two. That's how a label
+fills the room next to a button, or a page fills the room next to a sidebar. `MinSize` and `MaxSize` clamp whatever the
+rest decided, which also keeps a growing item from being squeezed to nothing.
+
+Below you can see two growing blocks sharing a row with a fixed one, each with a slider for its `FlexGrow`:
 
 <Playground>
 ```csharp excerpt
@@ -456,17 +592,20 @@ class Growing : ReactiveComponent {
 ```
 </Playground>
 
-`Margin` pushes one item's neighbours and the container's edges away from that item. `AlignSelf` overrides the
-container's `AlignItems` for one child. `AspectRatio` derives one axis from the other, so a box with only a height
-and an aspect ratio of 1 is square.
+As you move the sliders, the fixed block keeps its width while the other two split whatever is left. A few more properties shape a
+single item. `Margin` pushes its neighbours and the container's edges away from it, and `AlignSelf` overrides the
+container's `AlignItems` for it alone. `AspectRatio` works out one axis from the other, so a box with only a height and
+an aspect ratio of 1 is square.
 
 ## Absolute positioning
 
-`PositionType.Absolute` takes an item out of the flow: its siblings are laid out as if it wasn't there, and
-`Position` pins it by its distance from the parent's edges, in points or percents, counting only the edges you set.
-A badge in a corner, a settings button the rest of the screen shouldn't know about, a progress fill behind a label
-stretched with `{ left = 0.pt, top = 0.pt, bottom = 0.pt }` and a bound width, and anything that follows the pointer
-are all this.
+`PositionType.Absolute` takes an item out of the flow, so its siblings are laid out as if it wasn't there. `Position`
+then pins it by its distance from the parent's edges, in points or percents, and only the edges you set count. A badge
+in a corner, a settings button the rest of the screen shouldn't know about and anything that follows the pointer all work
+this way. So does a progress fill behind a label, stretched with `{ left = 0.pt, top = 0.pt, bottom = 0.pt }` and a
+bound width.
+
+Here's a badge you can move between the corners of a box without the two blocks inside it noticing:
 
 <Playground>
 ```csharp excerpt
@@ -594,7 +733,93 @@ class Badge : ReactiveComponent {
 ```
 </Playground>
 
-An absolute item is still laid out by its parent, just not in the flow. To have the parent leave something alone
-entirely, see [Layout System](/docs/reactive/layout/system#ignoring-the-layout).
-`ConstrainHorizontal` and `ConstrainVertical` on a controller are Reactive's, not Yoga's, and only mean something on
-a [root](/docs/reactive/layout/system#leaves-and-roots).
+Wherever the badge goes, the blocks stay centered. An absolute item is still placed by its parent, just not
+in the flow, and [Layout System](/docs/reactive/layout/system#ignoring-the-layout) covers making the parent leave
+something alone entirely.
+
+## Constraining a root
+
+A root is a layout that nobody else lays out, like the top of a screen, so it's sized against the rect of the transform
+it's attached to. `ConstrainHorizontal` and `ConstrainVertical` on its controller decide how, one axis each, and both are
+on by default. On a constrained axis the root fills that rect, and on an unconstrained one it's as big as its content. A
+fixed `Size` on the root still wins over both, and a `MaxSize` makes it fit its content up to that limit. The flags come
+from Reactive rather than Yoga, and mean nothing on a flex layout nested in another one, where the parent decides the
+size. [Layout System](/docs/reactive/layout/system#leaves-and-roots) explains what makes a layout a root.
+
+Turn either flag off below to see the root, the blue box, shrink to its label on that axis:
+
+<Playground showCode>
+```csharp
+class Constraints : ReactiveComponent {
+    protected override GameObject Construct() {
+        var horizontal = Remember(true);
+        var vertical = Remember(true);
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                Padding = new() { top = 4.pt },
+                Gap = 3.pt
+            },
+
+            Children = {
+                new Layout {
+                    FlexController = { Gap = 4.pt },
+
+                    Children = {
+                        new BsToggle {
+                            Toggled = true,
+                            OnToggleStateChanged = x => horizontal.Value = x
+                        }.InNamedRail("Horizontal"),
+
+                        new BsToggle {
+                            Toggled = true,
+                            OnToggleStateChanged = x => vertical.Value = x
+                        }.InNamedRail("Vertical")
+                    }
+                },
+
+                // Has no controller, so the background inside is a root
+                new Background {
+                    FlexItem = {
+                        Size = new() { x = 70.pt, y = 32.pt }
+                    },
+
+                    Sprite = BeatSaberResources.Sprites.background,
+                    PixelsPerUnit = 10f,
+                    Color = Color.white with { a = 0.08f },
+
+                    Children = {
+                        new Background {
+                            FlexController = {
+                                JustifyContent = Justify.Center,
+                                AlignItems = Align.Center,
+                                Padding = 2.pt,
+                                sConstrainHorizontal = horizontal,
+                                sConstrainVertical = vertical
+                            },
+
+                            Sprite = BeatSaberResources.Sprites.background,
+                            PixelsPerUnit = 10f,
+                            Color = new Color(0.35f, 0.75f, 1f),
+
+                            Children = {
+                                new Label {
+                                    Text = "Root",
+                                    FontSize = 3f,
+                                    Color = Color.black
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }.Use();
+    }
+}
+```
+</Playground>
+
+Watch what happens with only one axis turned off: the box is as wide as its content and as tall as the space around
+it, which is how you'd build a sidebar.

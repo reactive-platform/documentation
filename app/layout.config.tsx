@@ -11,7 +11,8 @@ export const baseOptions: BaseLayoutProps = {
   nav: {
     title: (
       <>
-        <img src="https://avatars.githubusercontent.com/u/176132590?s=48&v=4" style={{width: 24, height: 24}} />
+        <img src="/logo/reactive-logo-black.svg" alt="" width={24} height={24} className="dark:hidden" />
+        <img src="/logo/reactive-logo-white.svg" alt="" width={24} height={24} className="hidden dark:block" />
         ReactiveUI
       </>
     ),

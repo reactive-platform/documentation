@@ -1,6 +1,6 @@
 import React from 'react';
 
-type AlertType = 'note' | 'warning' | 'tip';
+type AlertType = 'note' | 'warning';
 
 interface AlertProps {
     type?: AlertType;
@@ -9,14 +9,14 @@ interface AlertProps {
 
 const typeStyles: Record<AlertType, { box: string; icon: string; label: string; paths: React.ReactNode }> = {
     note: {
-        box: 'border-blue-500/30 bg-blue-500/5',
-        icon: 'text-blue-600 dark:text-blue-400',
+        box: 'border-green-500/30 bg-green-500/5',
+        icon: 'text-green-600 dark:text-green-400',
         label: 'Note',
         paths: (
             <>
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 16v-4" />
-                <path d="M12 8h.01" />
+                <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" />
+                <path d="M9 18h6" />
+                <path d="M10 22h4" />
             </>
         ),
     },
@@ -29,18 +29,6 @@ const typeStyles: Record<AlertType, { box: string; icon: string; label: string; 
                 <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" />
                 <path d="M12 9v4" />
                 <path d="M12 17h.01" />
-            </>
-        ),
-    },
-    tip: {
-        box: 'border-green-500/30 bg-green-500/5',
-        icon: 'text-green-600 dark:text-green-400',
-        label: 'Tip',
-        paths: (
-            <>
-                <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" />
-                <path d="M9 18h6" />
-                <path d="M10 22h4" />
             </>
         ),
     },

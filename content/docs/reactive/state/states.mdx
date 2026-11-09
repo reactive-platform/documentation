@@ -5,9 +5,11 @@ description: "What a state is, how it's read and written, callbacks and their li
 
 ## States
 
-A state is a value that tells its readers when it changes. Everything reactive in the library is built on that one
-object. Bindings subscribe to states. Derived states subscribe to states. Animated states *are* states, and so are
-the contexts that lists and scroll areas hand around.
+A state is a value that tells everyone reading it when it changes, and everything reactive in the library is built on
+this one idea.
+
+Here's the smallest example, a number and a button that adds to it. The button only changes `count`, and the label keeps
+up on its own:
 
 <Playground showCode>
 ```csharp
@@ -40,33 +42,35 @@ class Counter : ReactiveComponent {
 ```
 </Playground>
 
-`Remember` returns a `State<T>`. It has a `Value` you read and write, and an implicit conversion to `T` for the places
-where `.Value` is noise. Reading is always current: `Value` returns what was last written, even before anyone has
-been told about it. Writing notifies the readers, unless the new value equals the current one. In that case nothing
-happens at all. The comparison is `EqualityComparer<T>.Default`, so it is reference equality for a class and
-structural equality for a record.
+`Remember` creates a state with a starting value, here `0`. Reading it always gives you the latest value, even if the
+readers haven't heard about the change yet. Writing to it lets the readers know, unless the new value equals the
+current one, in which case nothing happens. "Equal" is whatever `EqualityComparer<T>.Default` says, which by default
+means the same object for a class and the same contents for a record.
+
+Views read a state through a binding, an `s`-prefixed property like `sText` that stays in sync with it.
+[Property Bindings](/docs/reactive/state/bindings) covers those in detail. To run your own code when a state changes,
+use a callback, as described below.
 
 <Alert>
-    When you have mutated an object in place and want readers to see it anyway, `EnforceInvalidation()` notifies without
-    comparing.
+    If you change an object without assigning a new one, the state can't tell and readers won't hear about it. Call
+    `EnforceInvalidation()` to let them know anyway.
 </Alert>
-
-A view reads a state through a binding, the `s`-prefixed property that keeps a property in sync with it.
-[Property Bindings](/docs/reactive/state/bindings) is about those. Code that wants to *do* something when a state
-changes uses a callback, described below.
 
 ## Callbacks
 
-A callback runs code when a state changes.
+A callback runs code when a state changes, and there are two ways to add one:
 
 ```csharp
 count.AddCallback(x => Debug.Log(x));
 count.AddCallback(x => Debug.Log(x), lazy: true);
 ```
 
-The first form runs once immediately with the current value and then on every change. That is usually what you want,
-because whatever the callback does to apply a value gets done for the initial value too. `lazy: true` skips the first
-call. Use it for callbacks that are about changes rather than values, like a log, a sound or an animation trigger.
+The first runs once right away with the current value, then again on every change. That's usually what you want, since
+whatever the callback does to apply a value gets done for the starting value too. `lazy: true` skips that first call, so
+use it for callbacks that are about changes rather than values, like a log, a sound or an animation trigger.
+
+Below you can see one of each added to the same state with their runs counted, so the eager count starts at 1 and the
+lazy one at 0:
 
 <Playground showCode>
 ```csharp
@@ -102,11 +106,13 @@ class Callbacks : ReactiveComponent {
 ```
 </Playground>
 
-`AddCallback` returns a `StateSubscription`, and `RemoveCallback()` on it stops listening. The plain form above lives
-until you remove it. That is fine when the state and the subscriber die together, which is the case for a state the
-component created for its own tree. It is a leak when the state outlives the subscriber. A settings state in a
-service, read by a screen that is opened and closed many times, keeps every closed screen's callbacks alive, and the
-screens with them. For a shared state, use the overloads that take the subscriber:
+`AddCallback` returns a `StateSubscription` you can call `RemoveCallback()` on to stop listening, and until you do, the
+plain form above keeps running. That's fine when the state and the subscriber go away together, as they do for a state
+a component created for its own tree, but becomes a leak when the state outlives the subscriber. A settings state in a
+service, read by a screen that opens and closes many times, keeps every closed screen's callbacks alive, and the screens
+along with them.
+
+For a shared state, use the overloads that take the subscriber:
 
 ```csharp
 settings.Volume.AddCallback(this, (self, x) => self._slider.Value = x);
@@ -114,32 +120,36 @@ settings.Theme.AddCallbackUnity(image, (img, x) => img.color = x);
 settings.Width.AddCallbackWeak(modifier, (mod, x) => mod.Size = x);
 ```
 
-`AddCallback(target, ...)` takes any `ILifetimeProvider`, which every component is. It checks `IsAlive` each time
-the state notifies and removes the subscription once the target is dead. `AddCallbackUnity` does the same for a Unity
-object by checking that it hasn't been destroyed. `AddCallbackWeak` holds the target through a `WeakReference`, for
-objects with no lifetime of their own, like a layout modifier. In all three the lambda receives the target as a
-parameter instead of capturing it. That is deliberate. A captured `this` would keep the component alive through the
-closure, and the liveness check could never fail. Generated bindings use these overloads and pick the right one for
-the property's owner. That is the reason a bound label never leaks.
+All three remove the subscription for you, the next time the state notifies after the target is gone. They differ in
+how they tell that it's gone:
+
+- `AddCallback(target, ...)` takes any `ILifetimeProvider`, which every component is, and checks `IsAlive`.
+- `AddCallbackUnity` takes a Unity object and checks that it hasn't been destroyed.
+- `AddCallbackWeak` holds the target through a `WeakReference` and checks that it hasn't been garbage collected, for
+  objects with no lifetime of their own, like a layout modifier.
+
+In all three the lambda receives the target as a parameter instead of capturing it. A captured `this` would keep the component alive through the closure, and the liveness check
+could never fail. Generated bindings use these overloads and pick the right one for the property's owner, so a bound
+label never leaks.
 
 ## How changes are delivered
 
-Setting a state does two things, at two different times. Most questions about states come down to this.
+Setting a state does two things at two different times, and most questions about states come down to this.
 
-The first thing is immediate. The state walks everything derived from it, `Map`, `Where` and `RememberDerived`, and
-marks it stale. No functions run. A derived state only notes that its cached value is no good and recomputes on the
-next read. The second thing is deferred. Every state that has callbacks and has changed is queued, and the queue is
-drained once per frame, after `LateUpdate` and right before the UI is drawn. That is when callbacks run, each once,
-with the state's value at that moment. Bindings are callbacks, so that is also when properties are set and the screen
-changes.
+First, right away, the state marks everything derived from it as stale, meaning anything built with `Map`, `Where` or
+`RememberDerived`. No functions run at this point, because a derived state simply recomputes the next time it's read.
+Second, later in the frame, the state delivers the change. Every changed state with callbacks waits in a queue, which
+runs once per frame, after `LateUpdate` and right before the UI is drawn. Each callback then runs once with the state's
+latest value. Bindings are callbacks, so this is also when properties are set and the screen changes.
 
-The consequences are what make states cheap. Ten writes to a state in one frame are one delivery with the final
-value, so a state written every frame by an animation costs one callback per frame, and a loop that updates a state a
-thousand times costs the same as a single assignment. A derived state whose inputs both changed is computed once,
-with both new values. It can never see one input updated and the other not, because nothing is computed until
-delivery, and by then both writes have landed. A change that reaches a state along two paths is delivered once. And
-nothing is delivered to a state nobody listens to, so a state that is only ever read through `Value` has no per-frame
-cost.
+This is what makes states cheap. Ten writes to a state in one frame become one delivery with the final value, so a state
+an animation writes every frame costs one callback per frame. A loop that updates a state a thousand times costs the
+same as a single assignment. A derived state whose inputs both changed is computed once with both new values, unless
+your code reads it between the two writes. Callbacks run after both writes have landed, so they never see one input
+updated and the other not. A change that reaches a state along two paths is also delivered only once. A state nobody
+listens to gets no deliveries at all, so reading it only through `Value` has no per-frame cost.
+
+Try this demo, which writes a state 1000 times per click while its delivery count only goes up by one each time:
 
 <Playground showCode>
 ```csharp
@@ -175,7 +185,10 @@ class Batching : ReactiveComponent {
 ```
 </Playground>
 
+Notice that the label jumps straight from 0 to 1000. The 999 values in between are never delivered, so no callback or
+binding sees those intermediate steps and they never reach the screen.
+
 <Alert>
-    Callbacks may write states. A callback that does so is delivered in the same pass, so a cascade settles within the
-    frame and the screen never shows an intermediate step.
+    Callbacks can write states too, and those changes are delivered in the same pass. A cascade settles within the frame,
+    so the screen never shows an intermediate step.
 </Alert>

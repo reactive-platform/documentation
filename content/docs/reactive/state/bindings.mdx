@@ -5,8 +5,10 @@ description: "The generated s-properties that keep a property in sync with a sta
 
 ## The s-properties
 
-A binding connects a state to a property. For every property with a setter there is an `s`-prefixed version that
-takes a state instead of a value.
+A binding connects a state to a property: for every property with a setter, there's an `s`-prefixed version that takes
+a state instead of a value.
+
+Here's a slider that drives a label's text, size and color through one state, and shows a hint once the level reaches 8:
 
 <Playground>
 ```csharp excerpt
@@ -15,8 +17,19 @@ var level = Remember(3);
 new Label {
     sText = level.Map(x => $"Level {x}"),
     sFontSize = level.Map(x => 3f + x * 0.4f),
-    sColor = level.Map(x => Color.Lerp(Color.white, Color.red, x / 10f)),
+    sColor = level.Map(x =>
+        Color.Lerp(Color.white, Color.red, x / 10f)
+    )
+},
+
+new Label {
+    Text = "Almost there!",
     sEnabled = level.Map(x => x >= 8)
+},
+
+new BsSlider {
+    Value = level.Value,
+    OnValueChanged = x => level.Value = (int)x
 }
 ```
 ```csharp
@@ -62,13 +75,15 @@ class Levels : ReactiveComponent {
 ```
 </Playground>
 
-Assign a state and the property is set now, and again on every change. This holds for every settable property on
-every component, so there is no list of bindable properties to learn. If you can write `Color = x`, you can write
-`sColor = state`. One state can drive the text, the size, the color and the visibility of several components at once,
-and because they all read the same state, they can never disagree.
+Assign a state and the property is set right away, then again on every change. This works for every settable property
+on every component, so there's no list of bindable properties to learn. If you can write `Color = x`, you can write
+`sColor = state`. One state can drive the text, size, color and visibility of several components at once, and since they
+all read the same state, they can never disagree.
 
 A control that both shows a state and changes it needs nothing extra. It reads through the `s`-property and reports
-through its own callback, and you write the callback's value back into the state.
+through its own callback, while you write the callback's value back into the state.
+
+Below you can see a toggle and a button sharing one state, along with a line of text that follows it:
 
 <Playground>
 ```csharp excerpt
@@ -123,48 +138,206 @@ class TwoWay : ReactiveComponent {
 ```
 </Playground>
 
-Flip `enabled` from the button and the toggle moves, because it reads the state like everything else. There is one
-copy of the value, so nothing can get out of sync. Writing a state the value it already has is a no-op, so the toggle's
+Flip `enabled` from the button and the toggle moves, because it reads the state like everything else. There's only one
+copy of the value, so nothing can get out of sync. Writing the value a state already has does nothing, so the toggle's
 own write-back doesn't cause a second notification.
 
 ## How bindings are generated
 
-The `s`-properties are not in the library. `Reactive.Compiler`, a Roslyn source generator referenced by the project,
-writes them while you type. When it sees `sText = something` in an object initializer of a `Label`, and `sText` is not
-a real member, it finds the `Text` property on `Label` and generates an extension property that subscribes the state
-to it.
+The `s`-properties aren't in the library. The Reactive compiler, a Roslyn source generator your project references, writes
+them while you type. When it sees `sText = something` in a `Label` initializer and `sText` isn't a real member, it finds
+the `Text` property on `Label`. It then generates an extension property that subscribes the state to it.
 
-Two practical consequences follow from the generator working from usage. First, it only looks inside members marked
-`[StateGen]`. `Construct` carries the attribute and overrides inherit it, so inside `Construct` you never think about
-it. A helper method that builds part of a tree needs the attribute itself, or the binding it uses will not exist.
+Because the generator works from usage, it only looks inside methods marked `[StateGen]`. If you try to use `sText` without this attribute, you'll get an error:
+
+<CompileExample compiles={false} output="App.cs(10,13): error CS0117: 'Label' does not contain a definition for 'sText'">
+```csharp
+class App : ReactiveComponent {
+    protected override GameObject Construct() {
+        var text = Remember("Hello");
+
+        return CreateLine(text).Use();
+    }
+
+    private static Label CreateLine(IState<string> text) {
+        return new Label {
+            sText = text.In()
+        };
+    }
+}
+```
+</CompileExample>
+
+The generator never looks inside this helper, so `sText` is never generated and `Label` has no such member. But if another
+usage has already generated this binding, you get `RV006` instead, like in this assignment outside an initializer:
+
+<CompileExample compiles={false} output="App.cs(12,13): error RV006: 'sText' is a generated binding, but this usage doesn't generate it, so it depends on another usage to exist. Assign a state to it inside an object initializer of a [StateGen] member instead.">
+```csharp
+class App : ReactiveComponent {
+    protected override GameObject Construct() {
+        var text = Remember("Hello");
+
+        new Label { sText = text };
+
+        return CreateLine(text).Use();
+    }
+
+    private static Label CreateLine(IState<string> text) {
+        return new Label {
+            sText = text.In()
+        };
+    }
+}
+```
+</CompileExample>
+
+The initializer generates `sText`, but the assignment below it generates nothing, so that line only works while the
+initializer exists. The fix for both is to use the binding in an initializer of a `[StateGen]` method, so adding the
+attribute makes the helper compile:
+
+<CompileExample compiles>
+```csharp
+class App : ReactiveComponent {
+    protected override GameObject Construct() {
+        var text = Remember("Hello");
+
+        return CreateLine(text).Use();
+    }
+
+    [StateGen]
+    private static Label CreateLine(IState<string> text) {
+        return new Label {
+            sText = text.In()
+        };
+    }
+}
+```
+</CompileExample>
+
+<Alert>
+`Construct` carries the attribute and overrides inherit it, so you never have to think about it
+there, but a helper method that builds part of a tree needs the attribute itself.
+</Alert>
+
+In Debug builds the generator also pre-generates a binding for every settable property of every type you initialize, so
+completion can suggest `sText` before you've typed it. That's what the `CompilerVisibleProperty` line in the project file
+is for, and Release builds generate only what's used.
+
+## Customizing the generator
+
+You'll rarely need them, but `[StateGen]` takes two optional parameters that change what the generator does in a method.
+
+### Patterns
+
+`Patterns` replaces the default name `s{}`, where `{}` stands for the property name, so the usual `sText` stops working
+in that method. You can list several patterns if you want more than one naming style, like this method does:
 
 ```csharp
-[StateGen]
-private static Label CreateLine(IState<string> text) {
+[StateGen(Patterns = ["state_{}", "st{}"])]
+protected override GameObject Construct() {
+    var text = Remember("Hello");
+    var size = Remember(6f);
+
     return new Label {
-        sText = text.In()
-    };
+        state_Text = text,
+        stFontSize = size
+    }.Use();
 }
 ```
 
-Second, the `.In()`. An `s`-property accepts a state through an implicit conversion, and C# does not apply a
-user-defined conversion from an interface type. A `State<T>`, a mapped state or an animated state assigns directly.
-Anything typed as `IState<T>`, which includes every method parameter and most fields, is wrapped with `.In()`.
-`.InLazy()` is the same without the initial apply, for a property that should only follow changes and keep its
-current value until the first one. Using a binding somewhere that doesn't generate it, for instance assigning `sText`
-outside an initializer, is reported as `RV006`. Such code only compiles because some other usage happened to generate
-the same property.
+Each name binds the property it stands for, so `state_Text` binds `Text` and `stFontSize` binds `FontSize`. A pattern needs
+both `{}` and some text around it, and the build fails without them:
 
-The generator can be steered, though you will rarely need to. `[StateGen(Patterns = ["state_{}", "st{}"])]` changes
-the naming from `s{}`, where `{}` stands for the property name. `[StateGen(Enabled = false)]` turns generation off
-for an override. In Debug builds the generator also pre-generates a binding for every settable property of every type
-you initialize, so completion can suggest `sText` before you have typed it. The `CompilerVisibleProperty` line in the
-project file exists for that. Release builds generate only what is used.
+<CompileExample compiles={false} output="App.cs(2,27): error RV002: Pattern 'state_{}{}' is not valid. It should contain an identifier and a {} to match, e.g. 'state_{}' or '{}State'.">
+```csharp
+class App : ReactiveComponent {
+    [StateGen(Patterns = ["state_{}{}"])]
+    protected override GameObject Construct() {
+        return new Label {
+            Text = "Hello"
+        }.Use();
+    }
+}
+```
+</CompileExample>
 
-## Nested objects and your own components
+### Enabled
+
+`Enabled` is on unless you say otherwise, and setting it to false makes the generator skip a method completely. It's useful
+in an override, which would otherwise inherit the attribute, but that method has to set plain properties instead of bindings:
+
+
+```csharp
+[StateGen(Enabled = false)]
+protected override GameObject Construct() {
+    return new Label {
+        Text = "Hello"
+    }.Use();
+}
+```
+
+Subclasses inherit this too, so generation stays off for them until one adds its own `[StateGen]`.
+
+## Binding abstractions
+
+An `s`-property doesn't actually take a state. Its type is `StateBinder`, a small wrapper around the state, and C# creates
+one through an implicit conversion when you assign a state. You never notice this with a concrete type, so anything from
+`Remember` or `Map` assigns straight to the property.
+
+The catch is that C# [doesn't allow user-defined conversions from an interface type](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/language-specification/conversions),
+and parameters are usually typed as `IState<T>`. A parameter typed `State<string>` works without it since only the declared type matters,
+but when using an abstract state you have to build the binder yourself. For this purpose reactive ships two extension methods: `.In()` and `.InLazy()`.
+While plain `.In()` only does a conversion, `.InLazy()` also skips the initial value, keeping the property's value until the first change.
+
+Leave out `.In()` in this helper, which takes its state as a parameter, and the build fails:
+
+<CompileExample compiles={false} output="App.cs(11,21): error CS0029: Cannot implicitly convert type 'Reactive.IState<string>' to 'Reactive.Compiler.StateBinder<string, Reactive.IState<string>>'">
+```csharp
+class App : ReactiveComponent {
+    protected override GameObject Construct() {
+        var text = Remember("Hello");
+
+        return CreateLine(text).Use();
+    }
+
+    [StateGen]
+    private static Label CreateLine(IState<string> text) {
+        return new Label {
+            sText = text
+        };
+    }
+}
+```
+</CompileExample>
+
+The error names both sides of the missing conversion: the state's `IState<string>` type and the `StateBinder` that `sText`
+expects. The state itself is fine, so this fixed version only adds `.In()` to build the binder directly:
+
+<CompileExample compiles>
+```csharp
+class App : ReactiveComponent {
+    protected override GameObject Construct() {
+        var text = Remember("Hello");
+
+        return CreateLine(text).Use();
+    }
+
+    [StateGen]
+    private static Label CreateLine(IState<string> text) {
+        return new Label {
+            sText = text.In()
+        };
+    }
+}
+```
+</CompileExample>
+
+## Nested objects and your components
 
 Bindings work at any depth of an initializer, not only on the component itself. `FlexItem`, `FlexController` and
 `ContentTransform` are objects of their own with settable properties, so their properties get `s`-versions too.
+
+Try this demo, where one slider drives a box's size, the gap between its dots and its rotation:
 
 <Playground>
 ```csharp excerpt
@@ -247,12 +420,14 @@ class Nested : ReactiveComponent {
 ```
 </Playground>
 
-`ContentTransform` is a plain `RectTransform`, so this is not limited to Reactive's types. Any object you can
-initialize that has settable properties gets bindings. The lifetime overload is chosen by what the object is. A Unity
-object is checked for destruction, and a plain object like a modifier is held weakly.
+`ContentTransform` is a unity component, so bindings aren't limited to Reactive's types, and any object you can
+initialize gets them for its settable properties. Remember the different versions of `AddCallback` from
+[States](/docs/reactive/state/states#callbacks)? A generated binding subscribes with the one that fits its object. It
+removes itself when a Unity object is destroyed, a component is no longer alive or a plain object like a modifier is
+garbage collected. Your own components work the same way, with no attribute or interface to add, so a component with a `Value` property
+gets `sValue`.
 
-The same is true of components you write, with no attribute to add and no interface to implement. Give a component
-a `Value` property and `sValue` exists.
+In the next example, a `Meter` only declares `Value`, and two meters bind to a state through `sValue`:
 
 <Playground>
 ```csharp excerpt
@@ -371,5 +546,5 @@ class Meters : ReactiveComponent {
 </Playground>
 
 The binding is generated into the assembly that uses it, so the property, its type and the component have to be
-visible from there. A property with a private setter, an `init` setter, or an internal component in another assembly
-gets no binding. Static properties and indexers are skipped as well.
+visible from there. A property with a private or `init` setter gets no binding, and neither does an internal component
+from another assembly. Static properties and indexers are skipped as well.

@@ -30,6 +30,8 @@ in-browser Playground. The docs cover Reactive 2.0.0.
 - Before an example, explain what it does in a sentence or two, in its own paragraph ending with a colon. Say that an
   example follows, in wording no other example on the page shares, like "Here's an example", "Below you can see" or
   "Try this demo".
+- After an interactive example, point out what to look for, and vary how those sentences start on a page the same way.
+  Don't open each one with "Notice that".
 - Use inline code only when it's really needed, like for an identifier the reader would type. Describe everything else
   in words, so `Reactive.Compiler` becomes "the Reactive compiler".
 - Never mark a single symbol with inline code. Write the b slider, s-property or here 0 as plain text.

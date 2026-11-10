@@ -1,92 +1,392 @@
 ---
 title: "Troubleshooting"
-description: Symptom, cause, fix. The things that catch everyone once.
+description: "The problems that catch everyone once, grouped by topic, each with its cause and a fix."
 ---
 
-Each entry links to the page that explains what's going on.
+Each problem below starts from what you see, explains the cause and shows the fix, with a link to the page that goes
+into more depth. The problems are grouped by the part of Reactive they come from, so a hole in a layout is under Layout.
 
-## `sText` doesn't exist
+## Setup
 
-The `s`-bindings are written by a source generator, so if `sText`, `sColor` or `sEnabled` is an unknown member,
-the generator isn't running. Check that `Reactive.Compiler` is referenced: as a `PackageReference` with
-`PrivateAssets="all"` if you use the release, or as a `ProjectReference` with `OutputItemType="Analyzer"` if you
-build from source. Check that `LangVersion` is `latest`. The generated code uses extension members and won't compile on
-anything older. Then rebuild, because IDEs often need one before they see a generator's output. If a binding works in
-`Construct` but not in a helper method, the helper needs `[StateGen]`. And if the state you're assigning is typed
-as `IState<T>`, wrap it with `.In()`. → [Bindings](/docs/reactive/state/states),
-[Getting Started](/docs/reactive/getting-started)
+### `sText` doesn't exist
 
-## `FlexItem` does nothing
+The s-properties are written by the Reactive compiler, a source generator, so when it isn't running, none of them
+exist. Here's a component that works in a set-up project, built in one without the compiler:
 
-A `FlexItem` is read by the parent's controller, and if the parent has no `FlexController`, nobody reads it.
-Give the parent a controller, even with defaults. → [Layout System](/docs/reactive/layout/system#controllers-and-modifiers)
+<CompileExample status="error" output="App.cs(8,13): error CS0117: 'Label' does not contain a definition for 'sText'">
+```csharp
+using Reactive.BeatSaber.Components;
 
-## `FlexController = { }` does nothing
+class App : ReactiveComponent {
+    protected override GameObject Construct() {
+        var title = Remember("Hello");
 
-An empty initializer never touches the getter, so no controller is created. Set at least one property, or use
-`.AsFlexGroup()` and `.AsFlexItem()`, which exist for exactly this. → [Layout System](/docs/reactive/layout/system#controllers-and-modifiers)
+        return new Label {
+            sText = title
+        }.Use();
+    }
+}
+```
+</CompileExample>
 
-## The label didn't update right after I set the state
+Nothing in the library defines `sText`, so without the generator `Label` has no such member. The compiler has to be
+referenced as an analyzer, and `LangVersion` has to be `latest`, because the generated code uses extension members:
 
-It did, from the point of view of the frame: state changes are delivered once per frame, right before the UI
-renders, so reading `label.Text` on the line after `count.Value++` shows the old text, while the screen shows the
-new one. If code genuinely needs the result before the end of the frame, `ReactiveScheduler.Run()` delivers
-everything now. → [Reactive State](/docs/reactive/state/states#how-changes-are-delivered), [The Update Cycle](/docs/reactive/under-the-hood/frame)
+```xml
+<PropertyGroup>
+    <LangVersion>latest</LangVersion>
+</PropertyGroup>
 
-## The root is the wrong size
+<ItemGroup>
+    <PackageReference
+        Include="Reactive.Compiler"
+        Version="1.0.0"
+        PrivateAssets="all" />
+</ItemGroup>
+```
 
-A root layout fills the rect it's attached to. If it's a popup that should fit its content, turn off
-`ConstrainHorizontal` and `ConstrainVertical` on its `FlexController`. If it's a full screen that's too small, it's
-attached to something smaller than the view. `Use(transform)` on the view controller itself gives it the whole view.
-And a root's position is never set by the layout system, only its size. → [Layout System](/docs/reactive/layout/system#leaves-and-roots)
+When you build Reactive from source, reference the compiler project with `OutputItemType="Analyzer"` instead. Rebuild
+afterwards either way, since IDEs often need one build before they see a generator's output.
 
-## My component is 100 by 100 and the children are anywhere
+Read [Getting Started](/docs/reactive/getting-started#install-and-reference).
 
-Unity's default rect, and children left where their rects put them, means the component has no controller and
-isn't inside anything that lays it out. → [Layout System](/docs/reactive/layout/system)
+### `sText` works in `Construct` but not in helpers
 
-## A hidden component left a hole, or the content jumped
+The generator only looks inside methods marked `[StateGen]`, and `Construct` inherits the attribute while a helper
+doesn't. This helper is missing it:
 
-Disabled components leave the layout by default, so content after them moves up. If you want the space kept, set
-`WithinLayoutIfDisabled = true`. If you wanted it to close up and it didn't, that flag is set somewhere, or the
-component is still enabled. → [Layout System](/docs/reactive/layout/system#hiding-components)
+<CompileExample status="error" output="App.cs(10,13): error CS0117: 'Label' does not contain a definition for 'sText'">
+```csharp
+class App : ReactiveComponent {
+    protected override GameObject Construct() {
+        var title = Remember("Hello");
 
-## A list shows the wrong items after a change
+        return CreateTitle(title).Use();
+    }
 
-The cell copied something from the item when it was built, `Text = context.Item.Name` for instance, instead of
-reading it from the context. Cells are reused and handed new items, so everything a cell shows has to be a binding
-on its context: `sText = context.Map(x => x.Item.Name)`. → [Repeaters and Tables](/docs/reactive/lists/lists#cells-and-reuse)
+    private static Label CreateTitle(IState<string> title) {
+        return new Label {
+            sText = title.In()
+        };
+    }
+}
+```
+</CompileExample>
 
-## The modal doesn't appear
+The generator never reads the helper, so it never writes `sText` for it. The attribute alone isn't always enough either,
+since a state typed as `IState<T>` has to be wrapped with `.In()`:
 
-It opens over the nearest `Composition` up the hierarchy, which the plugin adds to every `ViewController` as it
-activates. A modal declared under something that isn't inside an activated view controller throws
-"The object is not in the composition stack". Also check that `IsPushed` is actually set: clicking outside doesn't
-close a modal on its own, so if `OnClickOutside` doesn't clear the state, the next open does nothing because it's
-still open. → [Modals and Dialogs](/docs/sdk/modals#how-overlays-work)
+<CompileExample status="error" output="App.cs(11,21): error CS0029: Cannot implicitly convert type 'Reactive.IState<string>' to 'Reactive.Compiler.StateBinder<string, Reactive.IState<string>>'">
+```csharp
+class App : ReactiveComponent {
+    protected override GameObject Construct() {
+        var title = Remember("Hello");
 
-## The animation stopped, or never started
+        return CreateTitle(title).Use();
+    }
 
-Animated states and players are modules of the component that created them, and only tick while that component
-is active in the hierarchy. A hidden component's animations pause until it's shown. If a `RememberAnimated` in a
-helper method doesn't animate, it was created on a component other than the one that's on screen. → [Animated States](/docs/reactive/animation/animated-states#animated-states)
+    [StateGen]
+    private static Label CreateTitle(IState<string> title) {
+        return new Label {
+            sText = title
+        };
+    }
+}
+```
+</CompileExample>
 
-## `RememberDerived` doesn't follow one of its inputs
+C# won't apply a user-defined conversion from an interface, and `.In()` makes that conversion explicit. With both the
+attribute and `.In()`, the helper compiles:
 
-The lambda reads a state that wasn't passed in as a dependency. The compiler reports this as `RV061`. The fix is
-to add the state to the argument list and take it as a parameter. → [Derived States](/docs/reactive/state/queries#derived-states)
+<CompileExample status="compiles">
+```csharp
+class App : ReactiveComponent {
+    protected override GameObject Construct() {
+        var title = Remember("Hello");
 
-## Scrolling works with the mouse but not the joystick
+        return CreateTitle(title).Use();
+    }
 
-In VR the joystick only scrolls inside scroll areas, which attach an adapter for it. Put the content in a
-`ScrollArea` or a `Table`. → [Pointer Input and Interaction](/docs/reactive/input#scrolling)
+    [StateGen]
+    private static Label CreateTitle(IState<string> title) {
+        return new Label {
+            sText = title.In()
+        };
+    }
+}
+```
+</CompileExample>
 
-## A dragged thing freezes at the edge of the thing I'm dragging it on
+Read [Bindings](/docs/reactive/state/bindings#how-bindings-are-generated).
 
-Pointer events stop once the pointer is over another graphic. Keep the `PointerEventData` from the press and read
-the position from it in `OnUpdate`. → [Pointer Input and Interaction](/docs/reactive/input#input-that-lasts)
+## Layout
 
-## Two `Background` types
+### `FlexItem` does nothing
 
-`Reactive.Components` and `Reactive.BeatSaber.Components` both define one. Add
-`using Background = Reactive.BeatSaber.Components.Background;` to the file. → [Getting Started](/docs/reactive/getting-started)
+A `FlexItem` is read by the parent's controller, so if the parent has no `FlexController`, nothing reads it and the
+size or margin is ignored. The parent only needs a controller for the child's settings to apply:
+
+```csharp
+new Background {
+    // Without this, the size below is never read
+    FlexController = {
+        JustifyContent = Justify.Center
+    },
+
+    Children = {
+        new Label {
+            FlexItem = {
+                Size = new() { x = 20.pt, y = 6.pt }
+            }
+        }
+    }
+}
+```
+
+<Screenshot src="/assets/layout/flex-item.png" alt="A child at Unity's default 100 by 100 spilling out of a parent without a controller, next to the same child at 20 by 6 in a parent with one" />
+
+Read [Layout System](/docs/reactive/layout/system#controllers-and-modifiers).
+
+### `FlexController = { }` does nothing
+
+An empty initializer never touches the property's getter, so no controller is created and the children aren't laid
+out. They keep Unity's default rects, which is why such a component looks 100 by 100 with its children wherever their
+rects put them:
+
+<Screenshot src="/assets/layout/containers-1.png" alt="A background at Unity's default 100 by 100 with a label left in its default rect" />
+
+Set at least one property, or call `AsFlexGroup()` when the defaults are all you want:
+
+```csharp
+// Creates nothing
+new Background { FlexController = { } }
+
+// Creates a controller
+new Background {
+    FlexController = { FlexDirection = FlexDirection.Row }
+}
+
+// Creates one with the defaults
+new Background().AsFlexGroup()
+```
+
+Read [Layout System](/docs/reactive/layout/system#controllers-and-modifiers).
+
+### Root expands to fill its parent
+
+A root is a layout that nothing lays out, so it's sized against the rect it's attached to and fills it. That suits a
+full screen, but a popup or a tooltip should fit its content, which takes turning the constraint off on both axes:
+
+```csharp
+new Background {
+    FlexController = {
+        ConstrainHorizontal = false,
+        ConstrainVertical = false
+    },
+
+    Children = {
+        new Label { Text = "Fits its text" }
+    }
+}.Use(transform);
+```
+
+<Screenshot src="/assets/layout/root-expands.png" alt="A root filling a parent without a controller, next to the same root shrunk to its label with both constraints off" />
+
+A full screen that comes out too small is attached to something smaller than the view, and `Use(transform)` on the view
+controller itself gives it the whole view. The layout also never moves a root, so placing it is up to its anchors.
+
+Read [Layout System](/docs/reactive/layout/system#leaves-and-roots).
+
+### Hidden component left a hole, or content jumped
+
+A disabled component leaves its parent's layout by default, so everything after it moves up. When the jumping looks
+worse than an empty space, keep the component in the layout while it's hidden:
+
+```csharp
+new Label {
+    Text = "Saved",
+    WithinLayoutIfDisabled = true
+}
+```
+
+<Screenshot src="/assets/layout/visibility.gif" alt="Two columns hiding their middle block, one closing up around it and one keeping its space" />
+
+If you wanted the content to close up and it didn't, that flag is set somewhere, or the component is still enabled.
+
+Read [Layout System](/docs/reactive/layout/system#hiding-components).
+
+## State
+
+### Label didn't update right after setting its state
+
+It did, from the point of view of the frame. State changes are delivered once per frame, right before the UI renders,
+so reading the label on the next line still shows the old text while the screen shows the new one. Code that needs the
+result before the end of the frame can deliver everything at once:
+
+```csharp
+count.Value++;
+
+// Still the old text here
+Debug.Log(label.Text);
+
+ReactiveScheduler.Run();
+
+// Now the new one
+Debug.Log(label.Text);
+```
+
+Read [Reactive State](/docs/reactive/state/states#how-changes-are-delivered) and [The Update Cycle](/docs/reactive/under-the-hood/frame).
+
+### `RememberDerived` doesn't follow one of its inputs
+
+The lambda reads a state that wasn't passed in as a dependency, so a change to that state doesn't recompute the result.
+The compiler reports this as `RV061`, and the fix is to pass the state and take its value as a parameter:
+
+```csharp
+// Doesn't follow name, only count
+var line = RememberDerived(
+    count,
+    predicate: x => $"{name.Value}: {x}"
+);
+
+// Follows both
+var line = RememberDerived(
+    name,
+    count,
+    predicate: (n, x) => $"{n}: {x}"
+);
+```
+
+Read [Derived States](/docs/reactive/state/queries#derived-states).
+
+## Lists and pools
+
+### List shows wrong items after changes
+
+Cells are reused and handed new items through their context, so a cell that copied something from its item when it was
+built keeps showing the old item. Everything a cell shows has to be a binding on the context:
+
+```csharp
+ConstructCell = context => new Label {
+    // Set once, so a reused cell keeps its first item's name
+    Text = context.Item.Name,
+
+    // Follows whatever item the cell is handed
+    sText = context.Map(x => x.Item.Name)
+}
+```
+
+Read [Repeaters and Tables](/docs/reactive/lists/lists#cells-and-reuse).
+
+### Pooled component shows stale data
+
+Despawning only disables a component, so the next spawn gets it back with everything its last use left on it. Set
+whatever differs between uses after every spawn, and restart timers in `OnEnable`, which runs when the pool enables
+the component again:
+
+```csharp
+var popup = _pool.Spawn();
+
+// A reused popup still has its last text and place
+popup.Text = $"+{points}";
+popup.Point = point;
+
+// Inside the popup
+protected override void OnEnable() {
+    _age.Value = 0f;
+}
+```
+
+Read [Component Pooling](/docs/reactive/lists/pooling#reactivepool).
+
+## Modals
+
+### Modal throws "The object is not in the composition stack"
+
+A modal opens over the nearest `Composition` above it, which the plugin adds to every `ViewController` as it activates,
+and it looks for one the moment it's pushed. It throws when nothing above it has one, which happens in two ways. The
+first is a tree that isn't inside a view controller at all, like a floating screen or a canvas of your own, and adding
+the component to the root of that tree gives the modal somewhere to open:
+
+```csharp
+// The root of a UI that isn't a view controller
+root.gameObject.AddComponent<Composition>();
+```
+
+The second is a modal pushed before its tree is attached anywhere. A binding applies its state's value as soon as it's
+set, so a modal bound to a state that starts as true is pushed inside `Construct`, while the tree is still on its own.
+Start the state as false and open the modal from `OnStart`, which runs once the component is in place:
+
+```csharp
+private State<bool> _opened = null!;
+
+protected override GameObject Construct() {
+    _opened = Remember(false);
+
+    return new Layout {
+        Children = {
+            new Modal {
+                sIsPushed = _opened,
+
+                Children = {
+                    new Label { Text = "Welcome" }
+                }
+            }
+        }
+    }.Use();
+}
+
+// Runs after the component is attached
+protected override void OnStart() {
+    _opened.Value = true;
+}
+```
+
+Read [Modals and Dialogs](/docs/sdk/modals#how-overlays-work).
+
+### Modal opens only once
+
+Clicking the dimmed area doesn't close a modal by itself, so if nothing clears the state there, the modal stays pushed
+as far as the state knows. The next open then sets a value that's already true and nothing happens. Clear it in
+`OnClickOutside` as well as in the close button:
+
+```csharp
+new Modal {
+    sIsPushed = opened,
+    OnClickOutside = () => opened.Value = false
+}
+```
+
+Read [Modals and Dialogs](/docs/sdk/modals).
+
+## Input
+
+### Scrolling works with mouse but not joystick
+
+In VR there's no mouse wheel, so `onScroll` on its own only fires in FPFC. Scroll areas and tables attach a
+`VRScrollAdapter` to turn the joystick into scrolling, and any graphic of yours can use the same one:
+
+```csharp
+new Background {
+    Do = x => x
+        .WithPointerEvents(onScroll: HandleScroll)
+        .WithNativeComponent(out VRScrollAdapter _)
+}
+```
+
+Read [Pointer Input and Interaction](/docs/reactive/input#scrolling).
+
+### Dragged component freezes at edges
+
+Hover and move events stop once the pointer leaves the object, so following the pointer with them breaks at the edge.
+Drag events keep coming to the pressed object whenever the pointer moves, until it's released, so follow it from
+`onDrag` instead:
+
+```csharp
+Do = x => x.WithPointerEvents(
+    onDown: h => knob.Value = ToOffset(h),
+    onDrag: h => knob.Value = ToOffset(h)
+)
+```
+
+Read [Pointer Input and Interaction](/docs/reactive/input#dragging).

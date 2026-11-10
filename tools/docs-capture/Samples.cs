@@ -25,6 +25,8 @@ internal static class Samples {
             "Composing" => new Composing(),
             "Containers1" => new Containers(false),
             "Containers2" => new Containers(true),
+            "FlexItems" => new FlexItems(),
+            "RootSizes" => new RootSizes(),
             "Roots" => new Roots(),
             "Visibility" => new Visibility(),
             "WebImages" => new WebImages(),
@@ -278,6 +280,146 @@ internal class Containers : ReactiveComponent {
         }
 
         return background.Use();
+    }
+}
+
+/// <summary>
+/// The troubleshooting entry on FlexItem: the same child with and without a controller on its parent.
+/// </summary>
+internal class FlexItems : ReactiveComponent {
+    protected override GameObject Construct() {
+        return new Layout {
+            FlexController = {
+                AlignItems = Align.FlexStart,
+                Gap = 20.pt
+            },
+
+            Children = {
+                CreateCase(withController: false, title: "Without a controller"),
+                CreateCase(withController: true, title: "With a controller")
+            }
+        }.Use();
+    }
+
+    private static Layout CreateCase(bool withController, string title) {
+        var parent = new Background {
+            FlexItem = {
+                Size = new() { x = 100.pt, y = 60.pt }
+            },
+
+            Sprite = BeatSaberResources.Sprites.background,
+            PixelsPerUnit = 10f,
+            Color = Color.white with { a = 0.15f },
+
+            Children = {
+                new Background {
+                    FlexItem = {
+                        Size = new() { x = 20.pt, y = 6.pt }
+                    },
+
+                    Sprite = BeatSaberResources.Sprites.background,
+                    PixelsPerUnit = 10f,
+                    Color = new Color(0f, 0.75f, 1f, 0.7f)
+                }
+            }
+        };
+
+        if (withController) {
+            parent.FlexController.JustifyContent = Justify.Center;
+            parent.FlexController.AlignItems = Align.Center;
+        }
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                Gap = 25.pt
+            },
+
+            Children = {
+                parent,
+
+                new Label {
+                    Text = title,
+                    FontSize = 4f,
+                    Color = Color.white with { a = 0.6f }
+                }
+            }
+        };
+    }
+}
+
+/// <summary>
+/// The troubleshooting entry on roots: a root inside a parent without a controller, with the default
+/// constraints and with both turned off.
+/// </summary>
+internal class RootSizes : ReactiveComponent {
+    protected override GameObject Construct() {
+        return new Layout {
+            FlexController = {
+                AlignItems = Align.FlexStart,
+                Gap = 20.pt
+            },
+
+            Children = {
+                CreateCase(constrained: true, title: "Default constraints"),
+                CreateCase(constrained: false, title: "Constraints off")
+            }
+        }.Use();
+    }
+
+    private static Layout CreateCase(bool constrained, string title) {
+        // The parent has no controller, so the background inside it is a root
+        var view = new Background {
+            FlexItem = {
+                Size = new() { x = 100.pt, y = 60.pt }
+            },
+
+            Sprite = BeatSaberResources.Sprites.background,
+            PixelsPerUnit = 10f,
+            Color = Color.white with { a = 0.15f },
+
+            Children = {
+                new Background {
+                    FlexController = {
+                        Padding = 2.pt,
+                        JustifyContent = Justify.Center,
+                        AlignItems = Align.Center,
+                        ConstrainHorizontal = constrained,
+                        ConstrainVertical = constrained
+                    },
+
+                    Sprite = BeatSaberResources.Sprites.background,
+                    PixelsPerUnit = 10f,
+                    Color = new Color(0f, 0.75f, 1f, 0.7f),
+
+                    Children = {
+                        new Label {
+                            Text = "Fits its text",
+                            FontSize = 4f
+                        }
+                    }
+                }
+            }
+        };
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                Gap = 5.pt
+            },
+
+            Children = {
+                view,
+
+                new Label {
+                    Text = title,
+                    FontSize = 4f,
+                    Color = Color.white with { a = 0.6f }
+                }
+            }
+        };
     }
 }
 

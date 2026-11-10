@@ -17,6 +17,8 @@ cp $REPO/public/assets/intro/counter.png $REPO/public/assets/intro/quick-start.p
 one Settings intro/coming-from-bsml.png 110 60
 one Containers1 layout/containers-1.png 110 70
 one Containers2 layout/containers-2.png 110 70
+one FlexItems layout/flex-item.png 230 100
+one RootSizes layout/root-expands.png 230 80
 one Roots layout/roots-2.png
 one Visibility layout/visibility.png
 one Buttons sdk/buttons.png

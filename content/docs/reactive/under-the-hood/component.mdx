@@ -5,53 +5,84 @@ description: "The host behind every component, how several components share one 
 
 ## The host
 
-A `ReactiveComponent` is a plain C# object. When `Construct` returns, the component takes the `GameObject` it got,
-makes sure it has a `RectTransform`, adds a hidden `ReactiveHost` behaviour to it with `GetOrAddComponent`, and
-registers itself with that host. The host is the only `MonoBehaviour` in the picture. It is a private nested class of
-`ReactiveComponent`, so nothing outside ever deals with it directly. It receives Unity's `Start`, `Update`,
-`LateUpdate`, `OnEnable`, `OnDisable`, `OnDestroy`, `OnRectTransformDimensionsChange` and `OnTransformParentChanged`,
-and forwards each one to every component registered on it, in registration order. It runs the components'
-coroutines, because `StartCoroutine` on a component is `StartCoroutine` on its host. It ticks the components' modules
-from its own `Update`. And it implements `ILayoutItem`, so it is what a parent's layout controller holds, measures and
-applies dimensions to. The component's layout members, `LayoutModifier`, `WithinLayout`, `LayoutAppliedEvent` and the
-rest, all forward to it.
+A component is a plain C# object, not a Unity behaviour. Once `Construct` returns, the component looks for a host on
+the object it got, adds one if there isn't any, and registers itself with it. The host is Reactive's own behaviour on
+that object, and it stays private, so you never deal with it directly. It passes Unity's lifecycle messages, like start,
+update and destroy, to every component registered on it, in the order they registered. Enable and disable only reach
+them when the object itself is turned on or off, not when a parent is. The host also runs the components' coroutines,
+ticks their modules, and is what a parent's layout controller actually holds, measures and sizes.
 
-That `GetOrAddComponent` is the whole trick behind composition. `Construct` conventionally returns another
-component's `GameObject`, as in `return new Layout { ... }.Use();`. When your component then asks for a host on that
-object, the host is already there, put there by the `Layout`. Your component registers on the same host. Both get the
-same lifecycle events, both live on the same object, and there is no wrapper in the hierarchy. Your component *is*
-its root, with your API on top. This stacks as deep as you like. `BsTextButton` wraps a `BsButton`, which builds a
-`Background`, which is a `ComponentLayout<Image>`, which builds an `Image`. That is four components, one host, and
-one object with an `Image` on it. Composition costs no transforms, and that is why a thin wrapper component really
-is thin.
+This is the whole trick behind composition. `Construct` usually returns another component's object, like
+`new Layout { ... }.Use()`, so the host is already there when your component looks for one. Your component joins that
+host, gets the same lifecycle messages and lives on the same object, with no wrapper in the hierarchy. It stacks as deep
+as you like, and a thin wrapper component really is thin, because composing costs no extra transforms.
 
-The constructor calling `Construct` is part of the same story. Because the tree exists before any initializer runs
-on your component, a public property can forward to something inside the tree, and the outside never knows the
-difference between a property the component owns and one it delegates to a child. Modules bound before the host
-exists, from a field initializer or `OnInstantiate`, are held in a temporary set and transferred to the host as soon
-as it is created, so the binding order doesn't matter either.
+Here's how a text button is built. Each component creates the next one while it's being constructed, so the innermost
+one finishes first, makes the object and adds the host, and the others register on that host on the way back out:
 
-The host also handles two subtleties you would otherwise meet. Setting `Enabled` on an object inside a disabled
-hierarchy doesn't fire `OnEnable`, so the host remembers that it was actually disabled and schedules a layout
-recalculation when the hierarchy comes back. And a rect changed from outside the layout system, by Unity or by your
-code, marks the host's last applied dimensions as stale, so the layout reapplies them rather than assuming they still
-hold.
+```mermaid
+%%{init: {"sequence": {"mirrorActors": false, "actorMargin": 24}}}%%
+sequenceDiagram
+    autonumber
+    participant text as BsTextButton
+    participant button as BsButton
+    participant background as Background
+    participant image as Image
+    participant host as Host
+
+    text->>button: creates
+    button->>background: creates
+    background->>image: creates
+    image->>image: makes the object
+    image->>host: adds, registers
+    background->>host: registers, takes layout
+    button->>background: adds the underline
+    button->>host: registers
+    text->>background: adds the label
+    text->>host: registers
+```
+
+Running `Construct` from the constructor matters too. The tree exists before any initializer runs on your component,
+so a property can forward to something inside it and look no different from one the component owns. Modules you bind
+before the host exists wait in a temporary set and move over once it's created, so the order you bind them in doesn't
+matter either.
+
+The host also covers a few cases you'd otherwise run into. Turning an object on or off inside a hidden hierarchy
+doesn't reach Unity's enable message, so the host remembers it and lays the object out again once the hierarchy shows
+up. A rect resized from outside the layout system marks the last applied size as stale, so the layout applies it again.
+And when the object moves to another parent, the host forgets each component's cached canvas, since a pooled component
+can end up under a different one.
 
 ## The layout component
 
-Several components on one host raise a question the host has to answer. When the parent's layout controller asks how
-big this host is, or hands it dimensions to apply, which component responds? Exactly one of them, the host's
-**layout component**. A component takes the role by calling `PromoteLayoutComponent(this)`, usually from
-`OnInstantiate`. Promoting another one demotes the previous. The host proxies five calls to whoever holds the role.
-`PromotedHasIntrinsicContent` says whether measuring this host is meaningful at all. A controller skips the measure
-call when it is false and treats the host as empty. `PromotedMeasure(width, widthMode, height, heightMode)` answers
-a measure request with a size. `PromotedApplyLayout(dimensions)` is called after the host has applied its own
-dimensions to its rect, so a container can go on to apply its children's. `PromotedRecalculateLayout()` is called
-when the host is a root that needs recalculating. `PromotedOnModifierUpdate()` is called when the host's modifier
-changes while it is a root, since there is no parent controller to pick the change up.
+Several components on one host raise a question. A parent's layout controller only ever deals with the host, so when
+it asks how big the host is or hands it a size, one component has to answer for all of them. That component is the
+host's **layout component**, and without one the host measures as empty and nothing lays out its children.
 
-`Layout` promotes itself and forwards all five to its controller. That is how a container works. A leaf promotes
-itself and overrides measuring, and `Label` is the whole pattern in a few lines.
+A component takes the role by calling `PromoteLayoutComponent(this)`, and when several do, the last call wins. You can
+call it from `OnInstantiate` or from `OnInitialize`, and it reaches the host either way, because a call made before the
+host exists waits and takes effect the moment the component registers. What decides the winner is the order components
+register in, and an outer component always registers after everything it built. So `Layout` takes over from the
+component it was built around, while a leaf like `Label` or `Image` keeps the role until a layout wraps it. When the
+role moves, the previous holder is demoted and the parent measures the host again if anything about its size changed.
+From then on, the host passes five calls to whoever holds the role:
+
+- **`PromotedHasIntrinsicContent`** says whether measuring the host means anything. When it's false, a controller skips
+  measuring and treats the host as empty.
+- **`PromotedMeasure(width, widthMode, height, heightMode)`** answers a measure request with a size.
+- **`PromotedApplyLayout(dimensions)`** runs after the host has applied its own dimensions to its rect, so a container
+  can go on to apply its children's.
+- **`PromotedRecalculateLayout()`** runs when the host is a root that needs recalculating.
+- **`PromotedOnModifierUpdate()`** runs whenever the host's modifier changes or it leaves its parent. `Layout` only acts
+  on it as a root, applying the modifier to its own tree, since no parent controller picks the change up.
+
+Only `Layout`, `Label` and `Image` promote themselves, and every other component is built on top of one of them. A
+button, a toggle or a slider never promotes, so its layout component is whatever sits at the bottom of what it built. In
+the text button above, `Image` takes the role when it registers at step 5, `Background` takes it over at step 6, and
+`BsButton` and `BsTextButton` register after that without touching it.
+
+`Layout` forwards all five calls to its controller, and that's how a container works. A leaf overrides measuring
+instead, and here's `Label` doing exactly that:
 
 ```csharp
 protected override void OnInstantiate() {
@@ -82,16 +113,57 @@ protected override Vector2 PromotedMeasure(
 ```
 
 `NotifyLayoutDataUpdated` is how a leaf tells its parent that its content changed size, so the parent lays it out
-again. TextMeshPro's dirty callback is wired straight to it. The `MeasureMode`s are Yoga's. `Exactly` imposes the
-length, `AtMost` caps it, and `Undefined` asks for the natural size. `LayoutTool.MeasureNode` applies those rules to a
-preferred size, so you don't write the three cases yourself. `LayoutTool.FitPreservingAspect` does the same while
-keeping an aspect ratio, which is what `Image` uses with `PreserveAspect`. That is the recipe for any component that
-wraps something with a natural size: promote yourself, say you have intrinsic content, measure it, and notify when it
-changes.
+again, and TextMeshPro's dirty callback is wired straight to it. `Layout` does the same for a parent that measures it
+instead of sharing its tree, whenever its controller or children change.
 
-Promotion is also why a component is a container or a leaf but never both. `Background` is `ComponentLayout<Image>`,
-a `Layout` whose `Construct` builds an `Image`. The image promotes itself first. The layout promotes itself when it is
-added to the host, and wins. From then on the image is only drawn, the background's size comes from its children,
-and the image stretches to whatever that is. The same mechanism lets a wrapper component take over layout from the
-thing it wraps when it needs to, and lets a component that doesn't care about layout at all leave it to whoever built
+Two helpers from `LayoutTool` do the measuring work, so you don't handle each mode yourself. This snippet runs both on a
+preferred size of 40 by 20:
+
+```csharp
+var preferred = new Vector2(40f, 20f);
+
+// No constraints, so the preferred size comes back as it is
+var natural = LayoutTool.MeasureNode(
+    preferredSize: preferred,
+    width: float.NaN,
+    widthMode: MeasureMode.Undefined,
+    height: float.NaN,
+    heightMode: MeasureMode.Undefined
+);
+
+// An imposed width, and a height capped below the preferred one
+var constrained = LayoutTool.MeasureNode(
+    preferredSize: preferred,
+    width: 30f,
+    widthMode: MeasureMode.Exactly,
+    height: 10f,
+    heightMode: MeasureMode.AtMost
+);
+
+// The same width as a cap, with the height following the aspect ratio
+var fitted = LayoutTool.FitPreservingAspect(
+    size: preferred,
+    width: 30f,
+    widthMode: MeasureMode.AtMost,
+    height: float.NaN,
+    heightMode: MeasureMode.Undefined
+);
+
+Debug.Log($"{natural.x} x {natural.y}");         // 40 x 20
+Debug.Log($"{constrained.x} x {constrained.y}"); // 30 x 10
+Debug.Log($"{fitted.x} x {fitted.y}");           // 30 x 15
+```
+
+`MeasureNode` keeps the preferred size when an axis has no limit, uses the given size when one is imposed, and takes
+the smaller of the two when it's only a cap. `FitPreservingAspect` scales the whole size instead, so capping the width
+also shrinks the height and keeps the ratio. An image that preserves its aspect runs its preferred size through it first,
+then hands the result to `MeasureNode`.
+
+That's the recipe for any component that wraps something with a natural size: promote yourself, say you have intrinsic
+content, measure it and notify when it changes.
+
+Promotion is also why a component is a container or a leaf, never both. A background is a layout built around an
+image, and as the text button showed, the layout takes over. From then on the image is only drawn, while the background
+takes its size from its children and the image stretches to match. The same mechanism lets a wrapper take over layout
+from what it wraps by promoting itself, and lets a component that doesn't care about layout leave it to whoever built
 the tree.

@@ -6,13 +6,10 @@ description: "Showing data as cells that are reused rather than rebuilt, virtual
 ## Cells and reuse
 
 A list in Reactive is a `Repeater` or a `Table`. You give it the items and a function that builds one cell, and it
-keeps the cells in step with the items. Both are built on a single idea. It is worth understanding before using
-either. Getting it right is what makes lists work.
+keeps the cells in step with the items. Add and remove names here, and keep an eye on how many cells get built:
 
 <Playground preview="/assets/lists/repeater.gif">
 ```csharp excerpt
-var names = Remember<IReadOnlyList<string>>(["Ada", "Linus", "Grace"]);
-
 new Repeater<string, Label> {
     FlexController = {
         FlexDirection = FlexDirection.Column,
@@ -21,8 +18,13 @@ new Repeater<string, Label> {
 
     sItems = names,
 
-    ConstructCell = context => new Label {
-        sText = context.Map(x => $"{x.Index + 1}. {x.Item}")
+    ConstructCell = context => {
+        // Only runs when there are more items than cells
+        built.Value++;
+
+        return new Label {
+            sText = context.Map(x => $"{x.Index + 1}. {x.Item}")
+        };
     }
 }
 ```
@@ -35,6 +37,8 @@ class Names : ReactiveComponent {
             "Grace",
             "Dennis"
         ]);
+        var built = Remember(0);
+
         string[] pool = ["Margaret", "Alan", "Barbara", "Ken"];
         var next = 0;
 
@@ -56,10 +60,21 @@ class Names : ReactiveComponent {
 
                     sItems = names,
 
-                    ConstructCell = context => new Label {
-                        Alignment = TextAlignmentOptions.Left,
-                        sText = context.Map(x => $"{x.Index + 1}. {x.Item}")
+                    ConstructCell = context => {
+                        // Only runs when there are more items than cells
+                        built.Value++;
+
+                        return new Label {
+                            Alignment = TextAlignmentOptions.Left,
+                            sText = context.Map(x => $"{x.Index + 1}. {x.Item}")
+                        };
                     }
+                },
+
+                new Label {
+                    FontSize = 3f,
+                    Color = Color.white with { a = 0.6f },
+                    sText = built.Map(x => $"Cells built: {x}")
                 },
 
                 new Layout {
@@ -92,58 +107,152 @@ class Names : ReactiveComponent {
 ```
 </Playground>
 
+Remove a few names and add them back, and the counter stays where it was, since it only grows when the list gets
+longer than it has ever been. That works because the repeater reuses its cells. It builds one only when there are more
+items than cells, disables the spare ones when there are fewer, and enables them again when the list grows.
 
-There are two type arguments, the item type and the cell type. `Items` is bound to a list state, and adding or
-removing an item means assigning a new list. There is no `Add` or `Remove` on the repeater, because there doesn't
-need to be one. The repeater exposes its internal layout's controller through `FlexController`, so the cells can be a
-column, a row or a wrapping grid, like any other children.
+The two type arguments are the item type and the cell type. `Items` takes the whole list, so changing it means assigning
+a new one, and the repeater has no `Add` or `Remove`. Its `FlexController` lays the cells out like any other children,
+as a column, a row or a wrapping grid.
 
-The cell doesn't receive the item. It receives a `CellContext<T>`, a [state](/docs/reactive/state/states) whose value
-is itself. It carries `Item`, `Index`, `TotalCells` and whether the cell is `Selected`, and it notifies when any of them
-change. The cell reads the item from it with `context.Map(x => x.Item)`. That indirection is the whole design. A list
-never rebuilds a cell. It constructs one only when there are more items than cells. Otherwise it hands an existing
-cell a new context, the cell's bindings read the new item, and that is the update. When there are fewer items than
-cells, the spare cells are disabled rather than destroyed, and they come back when the list grows. Shuffling a hundred
-rows, or emptying a list and filling it again, allocates nothing. The showcase's cell counter stays put while you do
-it.
+A cell doesn't get the item itself but a `CellContext<T>`, a [state](/docs/reactive/state/states) with these members:
 
-So **a cell must read everything it shows from its context.** This compiles and looks right:
+- `Item` is the item the cell shows right now.
+- `Index` is its position in the list, and `TotalCells` how many items there are.
+- `Selected` tells whether the item is selected, and setting it selects or deselects the item.
+- `UpdateType` tells whether the last change was to the item or to the selection.
 
-```csharp
-ConstructCell = context => new Label {
+When a cell is reused, it gets the new item through the same context, which notifies like any state. The cell's
+bindings then show the new item, so nothing is rebuilt. That makes one rule important: a cell has to read everything it
+shows from the context.
+
+A cell that sets its text once from the item compiles and looks right at first. Below, the same list is shown with that
+cell and with one that maps its text, so reverse it and compare the two:
+
+<Playground>
+```csharp excerpt
+// Set once, so a reused cell keeps showing its first item
+construct: context => new Label {
     Text = context.Item
 }
-```
 
-After the first reorder the cell still shows the item it was built with, because `Text` was set once from the old
-item and nobody told it otherwise. The list looks shuffled wrong, and the bug is invisible until the items change.
-`sText = context.Map(x => x.Item)` is the fix. The same goes for anything derived from the item: a color from a
-status, an icon from a type, a visibility from a flag. Map all of them from the context, so the cell can show whatever
-item it is handed. `UpdateType` on the context says whether the last change was the item or the selection, for the
-rare cell that wants to react differently to each.
+// Follows whatever item the cell is handed
+construct: context => new Label {
+    sText = context.Map(x => x.Item)
+}
+```
+```csharp
+class Reuse : ReactiveComponent {
+    protected override GameObject Construct() {
+        var names = Remember<IReadOnlyList<string>>([
+            "Ada",
+            "Linus",
+            "Grace",
+            "Dennis"
+        ]);
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 3.pt
+            },
+
+            Children = {
+                new Layout {
+                    FlexController = {
+                        Gap = 10.pt
+                    },
+
+                    Children = {
+                        CreateColumn(
+                            title: "Text",
+                            names: names,
+                            // Set once, so a reused cell keeps showing its
+                            // first item
+                            construct: context => new Label {
+                                Text = context.Item
+                            }
+                        ),
+
+                        CreateColumn(
+                            title: "sText",
+                            names: names,
+                            // Follows whatever item the cell is handed
+                            construct: context => new Label {
+                                sText = context.Map(x => x.Item)
+                            }
+                        )
+                    }
+                },
+
+                new BsTextButton {
+                    Text = "Reverse",
+                    OnClick = () => names.Value = names.Value
+                        .Reverse()
+                        .ToArray()
+                }
+            }
+        }.Use();
+    }
+
+    [StateGen]
+    private static Layout CreateColumn(
+        string title,
+        IState<IReadOnlyList<string>> names,
+        Func<CellContext<string>, Label> construct
+    ) {
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                Gap = 1.pt
+            },
+
+            Children = {
+                new Label {
+                    Text = title,
+                    FontSize = 3f,
+                    Color = Color.white with { a = 0.6f }
+                },
+
+                new Repeater<string, Label> {
+                    FlexController = {
+                        FlexDirection = FlexDirection.Column,
+                        AlignItems = Align.Center,
+                        Gap = 0.5f.pt
+                    },
+
+                    sItems = names.In(),
+                    ConstructCell = construct
+                }
+            }
+        };
+    }
+}
+```
+</Playground>
+
+After a reverse, the Text column still lists the names in their first order, because each label got its text once and
+its cell was then handed a different item. The sText column follows the list, since its labels map the context. The
+same goes for anything else that depends on the item, like a color from a status or an icon from a type.
 
 ## Tables and scrolling
 
-A repeater builds a cell per item. That is right for twenty items and wrong for ten thousand. A `Table` is a
-scrolling list that builds only the cells that fit on screen. It measures the first cell, works out how many fill the
-viewport, and builds that many. As you scroll it moves cells from one end to the other and hands each one a new
-context. The cells read the context like any state, so text and selection follow without anything being rebuilt. A
-table of ten thousand rows has the same dozen cells as a table of twenty. The contract is the repeater's, plus one
-rule that follows from measuring only the first cell: cells have a fixed size along the scroll axis.
+A repeater builds a cell for every item, which is fine for twenty items but not for ten thousand. A `Table` builds only
+as many cells as fit on screen, and as you scroll, it moves them from one end to the other with new items. Scroll
+through these ten thousand rows and click one:
 
 <Playground preview="/assets/lists/table.gif">
 ```csharp excerpt
 var scroll = new ScrollContext();
+var rows = Enumerable.Range(0, 10000).ToArray();
 
-new Table<int, IReactiveComponent> {
-    FlexItem = {
-        Flex = 1
-    },
-
+new Table<int, Background> {
     ScrollContext = scroll,
     Items = rows,
-    SelectionMode = SelectionMode.Single,
-    ConstructCell = CreateCell
+    ConstructCell = CreateRow
 },
 
 new Scrollbar {
@@ -152,50 +261,7 @@ new Scrollbar {
 ```
 ```csharp
 class Rows : ReactiveComponent {
-    private class Cell : ReactiveComponent {
-        private static readonly Color Selected = new(0.35f, 0.75f, 1f);
-
-        private readonly CellContext<int> _context;
-
-        public Cell(CellContext<int> context) : base(false) {
-            _context = context;
-            ConstructAndInit();
-        }
-
-        protected override GameObject Construct() {
-            return new Background {
-                FlexController = {
-                    AlignItems = Align.Center,
-                    Padding = new() { left = 2.pt, right = 2.pt }
-                },
-
-                FlexItem = {
-                    Size = new() { y = 6.pt }
-                },
-
-                Sprite = BeatSaberResources.Sprites.background,
-                PixelsPerUnit = 10f,
-                sColor = _context.Map(x => x.Selected
-                    ? Selected
-                    : Color.white with { a = x.Index % 2 == 0 ? 0.08f : 0.14f }
-                ),
-                Do = x => x.WithPointerEvents(
-                    onDown: _ => _context.Selected = true
-                ),
-
-                Children = {
-                    new Label {
-                        Alignment = TextAlignmentOptions.Left,
-                        sText = _context.Map(x => $"Row {x.Item + 1}"),
-                        sColor = _context.Map(x => x.Selected
-                            ? Color.black
-                            : Color.white
-                        )
-                    }
-                }
-            }.Use();
-        }
-    }
+    private static readonly Color SelectedColor = new(0.35f, 0.75f, 1f);
 
     protected override GameObject Construct() {
         var scroll = new ScrollContext();
@@ -209,15 +275,14 @@ class Rows : ReactiveComponent {
             },
 
             Children = {
-                new Table<int, Cell> {
+                new Table<int, Background> {
                     FlexItem = {
                         Size = new() { x = 60.pt, y = 50.pt }
                     },
 
                     ScrollContext = scroll,
                     Items = rows,
-                    SelectionMode = SelectionMode.Single,
-                    ConstructCell = x => new Cell(x)
+                    ConstructCell = CreateRow
                 },
 
                 new Scrollbar {
@@ -226,62 +291,108 @@ class Rows : ReactiveComponent {
             }
         }.Use();
     }
+
+    [StateGen]
+    private static Background CreateRow(CellContext<int> context) {
+        return new Background {
+            FlexController = {
+                AlignItems = Align.Center,
+                Padding = new() { left = 2.pt, right = 2.pt }
+            },
+
+            // Every row has the same height, which the table relies on
+            FlexItem = {
+                Size = new() { y = 6.pt }
+            },
+
+            Sprite = BeatSaberResources.Sprites.background,
+            PixelsPerUnit = 10f,
+            sColor = context.Map(x => x.Selected
+                ? SelectedColor
+                : Color.white with {
+                    a = x.Index % 2 == 0 ? 0.08f : 0.14f
+                }
+            ),
+
+            Do = x => x.WithPointerEvents(
+                onDown: _ => context.Selected = true
+            ),
+
+            Children = {
+                new Label {
+                    Alignment = TextAlignmentOptions.Left,
+                    sText = context.Map(x => $"Row {x.Item + 1}"),
+                    sColor = context.Map(x => x.Selected
+                        ? Color.black
+                        : Color.white
+                    )
+                }
+            }
+        };
+    }
 }
 ```
 </Playground>
 
+Only a dozen cells exist here, and each one gets a new row number as it comes back into view. The table measures its
+first cell to know how many fit, so every cell has to be the same size along the scroll axis. Otherwise it works like a
+repeater, with the same `Items`, `ConstructCell` and selection, and `ScrollOrientation` turns it sideways.
 
-`Table` has the same `Items`, `ConstructCell`, `SelectionMode` and `OnSelectedItemsChanged` as `Repeater`. It is vertical
-by default, and `ScrollOrientation` makes it horizontal. It takes a `ScrollContext`, which is a required raw state
-rather than a binding.
+Scrolling goes through a `ScrollContext`, a state shared by everything that cares about the same scroll position. The
+table writes it as you scroll, and the `Scrollbar` reads it to place its thumb and writes it when you drag. The table
+takes it as a plain property rather than a binding, since it needs the context itself and not only its value. Your code
+can move it too:
 
-Scrolling is state too. A `ScrollContext` carries the scroll position, the content size and the view size, and it is
-the one object shared by everything that cares about the same scrolling. The table writes to it as you scroll. The
-`Scrollbar` reads it to size and place its thumb, and writes it when the thumb is dragged. Code calls `ScrollTo(pos)`,
-`ScrollRelative(offset)`, `PageUp`, `PageDown`, `LineUp` or `LineDown` on it, each with an `immediately` flag that skips
-the animation. None of the three knows about the others. For reading there are `ScrollPos`, `MaxScrollPos`,
-`NormalizedScrollPos`, `ContentSize`, `ViewSize` and `CanScroll`. Since it is a state, it maps like one. A fade at the
-top of a list that appears once you have scrolled is `scroll.Map(x => x.ScrollPos > 0f)` bound to `sEnabled`. The same
-context drives a `ScrollArea` when the content isn't a list.
+- `ScrollTo` and `ScrollRelative` move to a position or by an offset.
+- `PageUp`, `PageDown`, `LineUp` and `LineDown` move by a page or by a cell.
+
+Each of them takes an `immediately` flag that skips the animation.
 
 ## Selection
 
-Repeaters and tables keep track of what is selected, and both ends of that go through the context. A cell selects
-itself by writing `context.Selected`, and it reads the same flag back to look selected. The cell is the only thing
-that has to know what "selected" looks like.
+Lists also track which items are selected, and both ends of that go through the context. A cell selects itself by
+setting `context.Selected` and reads the same flag back to look selected, as these chips do:
 
 <Playground preview="/assets/lists/selection.gif">
 ```csharp excerpt
-ConstructCell = context => new Background {
-    sColor = context.Map(x => x.Selected ? selectedColor : Color.clear),
-    Do = x => x.WithPointerEvents(
-        onDown: _ => context.Selected = !context.Selected
-    ),
+var selection = Remember<IReadOnlyCollection<string>>(initial);
 
-    Children = {
-        new Label {
-            sText = context.Map(x => x.Item)
-        }
+new Repeater<string, Background> {
+    // The mode comes first, since Single would reject two items
+    SelectionMode = SelectionMode.Multiple,
+    SelectedItems = initial,
+    OnSelectedItemsChanged = x => selection.Value = x.ToArray(),
+
+    Items = difficulties,
+    ConstructCell = context => new Background {
+        sColor = context.Map(x => x.Selected
+            ? SelectedColor
+            : Color.white with { a = 0.12f }
+        ),
+
+        Do = x => x.WithPointerEvents(
+            onDown: _ => context.Selected = !context.Selected
+        )
     }
+}
+
+new Label {
+    Color = Color.white with { a = 0.6f },
+    sText = selection.Map(x => x.Count == 0
+        ? "Nothing selected"
+        : $"Selected: {string.Join(", ", x)}"
+    )
 }
 ```
 ```csharp
 class Chips : ReactiveComponent {
     private static readonly Color SelectedColor = new(0.35f, 0.75f, 1f);
 
-    private Repeater<string, Background> _repeater = null!;
-
     protected override GameObject Construct() {
-        var difficulties = new[] {
-            "Easy",
-            "Normal",
-            "Hard",
-            "Expert",
-            "Expert+"
-        };
-        var selection = Remember<IReadOnlyCollection<string>>(
-            Array.Empty<string>()
-        );
+        string[] difficulties = ["Easy", "Normal", "Hard", "Expert", "Expert+"];
+        string[] initial = ["Hard", "Expert"];
+
+        var selection = Remember<IReadOnlyCollection<string>>(initial);
 
         return new Layout {
             FlexController = {
@@ -297,10 +408,12 @@ class Chips : ReactiveComponent {
                         Gap = 1.pt
                     },
 
-                    Items = difficulties,
+                    // The mode comes first, since Single would reject two items
                     SelectionMode = SelectionMode.Multiple,
+                    SelectedItems = initial,
                     OnSelectedItemsChanged = x => selection.Value = x.ToArray(),
 
+                    Items = difficulties,
                     ConstructCell = context => new Background {
                         FlexController = {
                             Padding = new() {
@@ -317,6 +430,7 @@ class Chips : ReactiveComponent {
                             ? SelectedColor
                             : Color.white with { a = 0.12f }
                         ),
+
                         Do = x => x.WithPointerEvents(
                             onDown: _ => context.Selected = !context.Selected
                         ),
@@ -331,7 +445,7 @@ class Chips : ReactiveComponent {
                             }
                         }
                     }
-                }.Bind(ref _repeater),
+                },
 
                 new Label {
                     Color = Color.white with { a = 0.6f },
@@ -343,22 +457,22 @@ class Chips : ReactiveComponent {
             }
         }.Use();
     }
-
-    protected override void OnStart() {
-        _repeater.SelectedItems = ["Hard", "Expert"];
-    }
 }
 ```
 </Playground>
 
+Hard and Expert start selected, and clicking a chip toggles it while the label lists the selection. On the list itself,
+`SelectionMode` decides what a cell selecting itself means:
 
-On the list, `SelectionMode` decides what a cell selecting itself means. `Single` replaces the previous selection.
-`Multiple` adds to it. `None` ignores it, which is the setting for lists that aren't selectable at all.
-`SelectedItems` can be read or set from code, so a list can start with something selected or be cleared when its mode
-changes, and `OnSelectedItemsChanged` reports the whole selection after every change. Switching to `Single` with
-several items selected keeps one and drops the rest.
+- `Single`, the default, replaces the previous selection.
+- `Multiple` adds to the selection.
+- `None` ignores it, for lists that aren't selectable at all.
 
-Selection is tracked by item, not by cell. That is what makes it survive reuse and scrolling. When a selected item
-scrolls out of view in a table, its cell is handed another item and shows that one unselected. When the item scrolls
-back in, whichever cell receives it sees `Selected` as true. It also means selection is keyed by the item's equality,
-so items that are value-equal count as the same item.
+`SelectedItems` reads or replaces the selection from code, and it throws when the count doesn't fit the mode, such as two
+items in `Single`. `OnSelectedItemsChanged` reports the whole selection after every change, and switching to `Single`
+with several items selected keeps only one of them.
+
+Selection is tracked by item rather than by cell, which is what lets it survive reuse and scrolling. When a selected row
+scrolls out of the table above, its cell gets another row and shows it unselected, and whichever cell receives the row
+when it scrolls back shows it selected again. It also means equal items count as the same item, so a list with
+duplicates selects them together.

@@ -5,8 +5,8 @@ description: "States that move towards a target over time, how fast and along wh
 
 ## Animated states
 
-An animated state is a state that moves towards its target instead of jumping to it. Everything bound to it glides,
-and nothing bound to it knows it is animated.
+An animated state moves toward its target instead of jumping to it, and everything bound to it glides along without
+knowing it's animated. Hover this card to see a color and a scale do that:
 
 <Playground preview="/assets/animation/animated-state.gif">
 ```csharp excerpt
@@ -87,44 +87,37 @@ class HoverCard : ReactiveComponent {
 ```
 </Playground>
 
+Move off the card while it's still growing, and it shrinks back from where it got to, not from full size. That's
+because setting `TargetValue` starts the animation from the current value, so stopping one halfway always looks smooth.
+While it moves, the state updates its bindings every frame like any other state, and setting the same target twice does
+nothing.
 
-`RememberAnimated` returns an `AnimatedState<T>`, a state with a current `Value` and a `TargetValue`. Setting the target
-starts an animation from wherever the value currently is, so interrupting an animation halfway is smooth by
-construction. Hover off while the card is still growing and it shrinks from where it got to, not from the full size.
-On every frame in between, the state notifies its readers like any other state. That is why `sColor = color` and
-`slocalScale = scale.Map(...)` are ordinary bindings. Setting the target to the value it already has does nothing, so a
-hover that fires twice doesn't restart anything.
+A few more members help around the start and end of an animation:
 
-The rest of the API covers the edges. `SetValueImmediate(value)` jumps to a value with no animation. That is what you
-use to pin something to the pointer while dragging, before letting it spring back by setting `TargetValue` on release.
-`IsFinished` says whether the value has arrived. `OnStart` and `OnFinish` are callbacks for either end of an animation.
-`Progress` is the curved progress from 0 to 1, if a reader wants that rather than the value. `Timing` and `Curve` can
-be changed after creation, so a duration can follow a slider.
+- `SetValueImmediate` jumps to a value without animating.
+- `IsFinished` tells whether the value has reached its target.
+- `OnStart` runs when an animation starts from rest, and `OnFinish` when it arrives.
+- `Progress` is how far the current animation has got after the curve, usually from 0 to 1.
+- `Timing` and `Curve` can be changed after the state is created.
 
-An animated state has to advance every frame. `RememberAnimated` handles that by binding the state to the calling
-component as a [module](/docs/reactive/components#modules). That one decision gives the right behaviour everywhere
-without any code of yours. The animation advances only while the component is active in the hierarchy, so a hidden
-card doesn't animate and a dismissed screen stops ticking. It stops when the component is destroyed, so nothing keeps
-writing to a dead object. And it runs in `Update`, before the frame delivers states and lays out, so what it changes is
-on screen in the same frame. One consequence is worth remembering. An animated state created in a helper method
-belongs to whatever component called `RememberAnimated`. That has to be the component on screen, or the animation
-never advances. `StateUtils.RememberAnimated(binder, ...)` takes the component explicitly for that case. There are
-overloads for `float`, `Vector2`, `Vector3` and `Color`. Any other type takes an interpolator, described below.
+An animated state needs to move every frame, so `RememberAnimated` attaches it to your component as a
+[module](/docs/reactive/components#modules). Because of that, it only runs while the component is active and stops
+when the component is destroyed, with no code of yours. The one thing to watch is that the state belongs to the
+component that called `RememberAnimated`, so if that component isn't on screen, the animation never moves.
 
 ## Timing and curves
 
-The second argument to `RememberAnimated` is an `AnimationTiming`. There are two kinds, for two different jobs.
+Timing decides how the value moves toward its target, and there are two types of it:
 
-A **duration**, written `400.ms` or `1.5f.sec`, reaches the target in exactly that time along the curve. Every new
-target restarts the clock. It is clean and predictable for things that happen once: a hover, a panel opening, a toast
-dismissing. Driven by something that changes continuously, like a slider being dragged, it is forever restarting and
-never quite catches up, which looks like lag.
+A **duration**, written `400.ms` or `1.5f.sec`, reaches the target in exactly that time along the curve, and every new
+target restarts the clock. That suits things that happen once, like a hover, a panel opening or a toast leaving. Driven
+by something that changes all the time, like a dragged slider, it restarts on every change and never quite catches up,
+which looks like lag.
 
-A **factor**, written `8.fact`, closes that share of the remaining gap every second. It is fast when far from the
-target and slow when close, exponential, and independent of frame rate. A new target doesn't restart anything. The
-value heads somewhere else from wherever it is. This is the timing for values that change all the time, such as
-something following a slider, a scroll position, or the pointer, and it is what the drag-pad knob and the SDK's
-smooth scrolling use. A factor has no fixed span to spread a curve over, so it ignores the curve.
+A **factor**, written `8.fact`, closes part of the remaining distance every frame, so the value is fast when far from
+the target and slow when close, and the factor sets the pace at any frame rate. A new target just sends the value
+somewhere else from wherever it is, so a factor suits values that change all the time, like a scroll position or
+anything following a slider. Drag the slider below and compare the two:
 
 <Playground preview="/assets/animation/timing.gif">
 ```csharp excerpt
@@ -243,9 +236,10 @@ class Timing : ReactiveComponent {
 ```
 </Playground>
 
-The curve, the optional third argument, decides how a duration's progress is spread over its time. Every dot below
-gets the same target and the same duration. Only the curve differs, so they all arrive together but get there
-differently.
+While you drag, the factor dot stays close behind the slider, and the duration dot keeps starting over and lags. That
+restart is also where the curve, the optional third argument, comes in, since it decides how a duration spreads its
+progress over time. Leave it out with a factor, because a curve would start its easing over on every new target. Every
+dot below gets the same target and duration, so only the curve differs:
 
 <Playground preview="/assets/animation/curves.gif">
 ```csharp excerpt
@@ -384,73 +378,192 @@ class Curves : ReactiveComponent {
 ```
 </Playground>
 
-`AnimationCurve` has the usual presets. `Linear`, `EaseIn`, `EaseOut`, `EaseInOut` and `Exponential` are there, and so
-are the cubic-bezier families with the same names and shapes as on the web, from `EaseInQuad` to `EaseInOutBack`, in
-`Quad`, `Cubic`, `Quint`, `Sine`, `Expo` and `Back` variants. The `Back` curves overshoot and come back, which works
-because interpolation is unclamped. For a curve of your own, subclass `AnimationCurve` and override
-`Evaluate(progress)`, or construct a `BezierCurve` with the four control values a CSS `cubic-bezier` would take.
+Press Play, and the dots arrive together but get there differently. Linear keeps a steady pace, while EaseOutBack
+overshoots the end and settles back. These are only a few of the curves on `AnimationCurve`, which also has the easing
+families you may know from CSS, like Quad, Cubic, Sine and Back.
+
+For a curve of your own, subclass `AnimationCurve` and override `Evaluate`, which turns how much of the time has passed
+into how far the value has got. This one bounces off the bottom like a dropped ball:
+
+<Playground>
+```csharp excerpt
+class BounceCurve : AnimationCurve {
+    // Takes how much of the time has passed and returns how far the
+    // value has got, both from 0 to 1
+    public override float Evaluate(float x) {
+        const float n = 7.5625f;
+        const float d = 2.75f;
+
+        if (x < 1f / d) {
+            return n * x * x;
+        }
+        if (x < 2f / d) {
+            x -= 1.5f / d;
+            return n * x * x + 0.75f;
+        }
+        if (x < 2.5f / d) {
+            x -= 2.25f / d;
+            return n * x * x + 0.9375f;
+        }
+
+        x -= 2.625f / d;
+        return n * x * x + 0.984375f;
+    }
+}
+
+var fall = RememberAnimated(0f, 1200.ms, new BounceCurve());
+```
+```csharp
+class BounceCurve : AnimationCurve {
+    // Takes how much of the time has passed and returns how far the
+    // value has got, both from 0 to 1
+    public override float Evaluate(float x) {
+        const float n = 7.5625f;
+        const float d = 2.75f;
+
+        if (x < 1f / d) {
+            return n * x * x;
+        }
+        if (x < 2f / d) {
+            x -= 1.5f / d;
+            return n * x * x + 0.75f;
+        }
+        if (x < 2.5f / d) {
+            x -= 2.25f / d;
+            return n * x * x + 0.9375f;
+        }
+
+        x -= 2.625f / d;
+        return n * x * x + 0.984375f;
+    }
+}
+
+class Drop : ReactiveComponent {
+    private const float BoxWidth = 16f;
+    private const float BoxHeight = 30f;
+    private const float BallSize = 5f;
+
+    protected override GameObject Construct() {
+        var fall = RememberAnimated(0f, 1200.ms, new BounceCurve());
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 3.pt
+            },
+
+            Children = {
+                new Background {
+                    FlexController = {
+                        FlexDirection = FlexDirection.Column,
+                        AlignItems = Align.Center
+                    },
+
+                    FlexItem = {
+                        Size = new() { x = BoxWidth.pt, y = BoxHeight.pt }
+                    },
+
+                    Sprite = BeatSaberResources.Sprites.background,
+                    PixelsPerUnit = 10f,
+                    Color = Color.white with { a = 0.1f },
+
+                    Children = {
+                        new Image {
+                            FlexItem = {
+                                PositionType = PositionType.Absolute,
+                                Size = BallSize.pt,
+                                sPosition = fall.Map(x => new YogaFrame {
+                                    top = (x * (BoxHeight - BallSize)).pt
+                                })
+                            },
+
+                            Sprite = GameResources.CircleIcon,
+                            PreserveAspect = true,
+                            Color = new Color(0.35f, 0.75f, 1f)
+                        }
+                    }
+                },
+
+                new BsTextButton {
+                    Text = "Drop",
+                    OnClick = () => {
+                        // Every drop starts from the top
+                        fall.SetValueImmediate(0f);
+                        fall.TargetValue = 1f;
+                    }
+                }
+            }
+        }.Use();
+    }
+}
+```
+</Playground>
+
+Each drop falls, hits the bottom and bounces a few times before it rests. The curve is the only new part, since the
+state, the timing and the binding work as before, and `SetValueImmediate` only puts the ball back at the top first. A
+curve shaped like a CSS cubic-bezier doesn't need a class at all, because `BezierCurve` takes its four numbers.
 
 ## Interpolators
 
-How two values are blended is an `IValueInterpolator<T>`, which is a `Lerp(from, to, t)` plus an equality comparer.
-The built-in overloads of `RememberAnimated` pick one for `float`, `Vector2`, `Vector3` and `Color`. The general
-overload takes one explicitly and animates any type you can write a `Lerp` for.
+An interpolator decides how an animated state blends between two values. `RememberAnimated` already has one for
+`float`, `Vector2`, `Vector3` and `Color`, and for any other type you pass your own, so anything you can blend can be
+animated. Your own needs two methods:
 
-The equality check skips animating to a target you are already at, so a hover that sets the same color twice doesn't
-restart. `t` is the curved progress and can leave the 0 to 1 range on an overshooting curve. A `Lerp` that clamps
-flattens those curves. The built-in interpolators use the unclamped Unity lerps for that reason, and yours should too,
-unless clamping is the point.
+- `Lerp` returns the value at a given point between the start and the target. That point can go below 0 or past 1 on
+  curves that overshoot, so use Unity's unclamped lerps unless you want to cut the overshoot off.
+- `Equals` tells whether two values are the same, so the state can skip a target it already has.
 
-Colors are the usual reason to write one. The default interpolates in RGB, which between opposite hues passes
-through a muddy gray in the middle. Walking the hue circle instead keeps the color saturated all the way.
+The usual reason to write one is color, since the default blends in RGB and turns a muddy gray between opposite hues.
+Press Swap to compare it with one that goes around the hue circle instead:
 
 <Playground preview="/assets/animation/interpolators.gif">
 ```csharp excerpt
-class HsvInterpolator : IValueInterpolator<Color> {
-    public static readonly HsvInterpolator Instance = new();
-
-    public Color Lerp(Color from, Color to, float t) {
+class HsvInterpolator : ValueInterpolator<HsvInterpolator, Color> {
+    public override Color Lerp(Color from, Color to, float t) {
         Color.RGBToHSV(from, out var h1, out var s1, out var v1);
         Color.RGBToHSV(to, out var h2, out var s2, out var v2);
 
-        var hueDelta = Mathf.Repeat(h2 - h1 + 0.5f, 1f) - 0.5f;
+        // Wrapped into half a turn either way, so the hue takes the
+        // short way round
+        var hueDelta = Wrap(h2 - h1 + 0.5f) - 0.5f;
 
         return Color.HSVToRGB(
-            Mathf.Repeat(h1 + hueDelta * t, 1f),
-            Mathf.Lerp(s1, s2, t),
-            Mathf.Lerp(v1, v2, t)
+            Wrap(h1 + hueDelta * t),
+            Mathf.LerpUnclamped(s1, s2, t),
+            Mathf.LerpUnclamped(v1, v2, t)
         );
     }
 
-    public bool Equals(Color x, Color y) => x == y;
+    public override bool Equals(Color x, Color y) => x == y;
 
-    public int GetHashCode(Color obj) => obj.GetHashCode();
+    // Keeps a hue between 0 and 1
+    private static float Wrap(float x) => x - Mathf.Floor(x);
 }
 
 var color = RememberAnimated(Color.red, HsvInterpolator.Instance, 600.ms);
 ```
 ```csharp
-class HsvInterpolator : IValueInterpolator<Color> {
-    public static readonly HsvInterpolator Instance = new();
-
-    public Color Lerp(Color from, Color to, float t) {
+class HsvInterpolator : ValueInterpolator<HsvInterpolator, Color> {
+    public override Color Lerp(Color from, Color to, float t) {
         Color.RGBToHSV(from, out var h1, out var s1, out var v1);
         Color.RGBToHSV(to, out var h2, out var s2, out var v2);
 
+        // Wrapped into half a turn either way, so the hue takes the
+        // short way round
         var hueDelta = Wrap(h2 - h1 + 0.5f) - 0.5f;
 
         return Color.HSVToRGB(
             Wrap(h1 + hueDelta * t),
-            Mathf.Lerp(s1, s2, t),
-            Mathf.Lerp(v1, v2, t)
+            Mathf.LerpUnclamped(s1, s2, t),
+            Mathf.LerpUnclamped(v1, v2, t)
         );
     }
 
-    public bool Equals(Color x, Color y) => x == y;
+    public override bool Equals(Color x, Color y) => x == y;
 
-    public int GetHashCode(Color obj) => obj.GetHashCode();
-
-    // Keeps a hue on the circle, like Mathf.Repeat(x, 1f)
+    // Keeps a hue between 0 and 1
     private static float Wrap(float x) => x - Mathf.Floor(x);
 }
 
@@ -531,8 +644,7 @@ class Swatches : ReactiveComponent {
 ```
 </Playground>
 
-
-The `hueDelta` line is the one that matters. It maps the difference into the range from minus half a turn to plus
-half a turn, so the hue always travels the short way round. The same shape animates a `Quaternion` through slerp, a
-`YogaVector` so that a size can animate through `sSize`, or a struct of your own. Keep a static instance, since an
-interpolator has no state, and pass it to `RememberAnimated`.
+Halfway through, the RGB swatch turns gray, while the HSV one stays bright. The hue difference is wrapped into half a
+turn either way, so the hue always takes the shorter way around. Deriving from `ValueInterpolator` gives you a shared
+`Instance`, so only `Lerp` and `Equals` are left to write. The same approach works for a `Quaternion`, a `YogaVector`
+for an animated size, or a struct of your own.

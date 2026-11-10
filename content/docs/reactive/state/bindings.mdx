@@ -169,9 +169,9 @@ class App : ReactiveComponent {
 </CompileExample>
 
 The generator never looks inside this helper, so `sText` is never generated and `Label` has no such member. But if another
-usage has already generated this binding, you get `RV006` instead, like in this assignment outside an initializer:
+usage has already generated this binding, you get `RV041` instead, like in this assignment outside an initializer:
 
-<CompileExample status="error" output="App.cs(12,13): error RV006: 'sText' is a generated binding, but this usage doesn't generate it, so it depends on another usage to exist. Assign a state to it inside an object initializer of a [StateGen] member instead.">
+<CompileExample status="error" output="App.cs(12,13): error RV041: 'sText' is a generated binding, but this usage doesn't generate it, so it depends on another usage to exist. Assign a state to it inside an object initializer of a [StateGen] member instead.">
 ```csharp
 class App : ReactiveComponent {
     protected override GameObject Construct() {

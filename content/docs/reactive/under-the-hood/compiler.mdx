@@ -41,8 +41,8 @@ type, so a parameter typed `IState<T>` needs an explicit wrap, and `.InLazy()` s
 The extension is generated into the assembly that uses the binding, one class per bound type. That is why the
 property, its type and the receiver all have to be visible from that assembly. A property is bindable when it has a
 non-`init` setter, isn't static or an indexer, and isn't marked `[RawState]`. A raw state opts out because it wants
-the state object itself rather than its values. The `RawStateAnalyzer` reports `RV004` as a reminder that subscribing
-is now the owner's job, and `RV005` if the property isn't typed as an `IState<T>`.
+the state object itself rather than its values. The `RawStateAnalyzer` reports `RV021` as a reminder that subscribing
+is now the owner's job, and `RV022` if the property isn't typed as an `IState<T>`.
 
 ## Where it looks and how to steer it
 
@@ -60,7 +60,7 @@ protected override GameObject Construct() { ... }
 ```
 
 A pattern without an identifier around the `{}` is reported as `RV001` or `RV002`, because it couldn't be matched
-unambiguously. The `GeneratedBindingAnalyzer` reports `RV006` when a generated binding is used somewhere that doesn't
+unambiguously. The `GeneratedBindingAnalyzer` reports `RV041` when a generated binding is used somewhere that doesn't
 generate it, outside an initializer or in a member without the attribute. Such a usage only compiles while some other
 usage happens to generate the same property, and it breaks the moment that other usage changes.
 
@@ -88,9 +88,11 @@ is both required and sets required members, which can't be both.
 Two more generators are used by the library itself and available to you. `[NoStateCapture]` marks a delegate
 parameter whose lambdas must receive states as arguments instead of capturing them. `RememberDerived` and
 `DerivedState` mark their function parameter with it. The `StateCaptureAnalyzer` walks each lambda body for references
-to states declared outside it and reports them as `RV108`. A derived state that would silently miss a dependency
+to states declared outside it and reports them as `RV061`. A derived state that would silently miss a dependency
 becomes a build warning instead. `[VariadicGen]` generates versions of a method or type for two up to N of a growing
 element, from the version for one, using patterns like `"IState<T{}> state{}"` to say which parameters and members
 grow. `RememberDerived` and `DerivedState` are written once for a single state and generated up to eight. That is why
-the overloads are identical, and why the eighth works exactly like the first. Every diagnostic, with its fix, is
-listed on [Compiler Diagnostics](/docs/reactive/reference/compiler-diagnostics).
+the overloads are identical, and why the eighth works exactly like the first. The `MemberAntipatternAnalyzer` warns
+with `RV201` when a component exposes a public method and with `RV202` when it exposes a public event, since neither can
+be set in an initializer or bound to a state. Every diagnostic, with its fix, is listed on
+[Compiler Diagnostics](/docs/reactive/reference/compiler-diagnostics).

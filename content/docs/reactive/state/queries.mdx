@@ -184,7 +184,7 @@ state can only follow what it was told about.
 `Map` has no check for this, but `RememberDerived` warns you when its function reads a state from outside its parameters,
 and this code gets that warning:
 
-<CompileExample status="warning" output="App.cs(6,28): warning RV108: 'b' is a state captured by the closure, pass it as a dependency instead so its changes are tracked">
+<CompileExample status="warning" output="App.cs(6,25): warning RV061: 'b' is a state captured by the closure, pass it as a dependency instead so its changes are tracked">
 ```csharp
 var a = Remember(3f);
 var b = Remember(4f);

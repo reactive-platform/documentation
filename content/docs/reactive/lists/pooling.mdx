@@ -1,82 +1,155 @@
 ---
 title: "Component Pooling"
-description: "When a Repeater is not enough: ReactivePool and GlobalReactivePool for performance-critical code and advanced setups."
+description: "When a Repeater is not enough: pools that hand out and take back components, for things that come and go fast or don't fit one list."
 ---
 
-For a changing number of things, you almost always want a [Repeater](/docs/reactive/lists/lists). You give it the
-items and it builds, reuses, orders and hides the cells for you, with far less code than managing them by hand. If one
-thing simply comes and goes, build it once and [toggle `Enabled`](/docs/reactive/layout/system#hiding-components).
+For a changing number of things, a [Repeater](/docs/reactive/lists/lists) is almost always the better choice, since it
+builds, reuses, orders and hides the cells from the items you give it.
+A pool only hands out components and takes them back, so everything else, from where a component goes to what it
+shows, is left to you. That trade pays off in two cases:
 
-The pools on this page are a lower-level tool. They hand you a component and leave everything else to you, which is
-only worth it in two cases:
-
-- **Performance-critical code.** Any change to a `Repeater`'s items walks the whole list and updates every cell's
-  context, even when only one item was added. A pool touches only the component you spawn or return, and a pooled
-  component doesn't need a context or bindings to show its data. This matters for things that appear and disappear
-  many times a second.
-- **More control than a `Repeater` gives.** A `Repeater` keeps all its cells in one container, in list order. With a
-  pool you decide where each component goes: under different parents, moved between them, built ahead of time, set up
-  before it becomes visible, or shared between screens.
+- **Things that come and go many times a second.** Any change to a repeater's items walks the whole list and updates
+  every cell's context, even when one item was added. A pool touches only the component you spawn or despawn, and that
+  component shows its data without a context.
+- **Components that don't fit one list.** A repeater keeps its cells in one container and in list order, while a pooled
+  component can go under any parent, move between parents, be built ahead of time or be shared between screens.
 
 ## ReactivePool
 
-`Spawn` gives you a returned component if there is one, and builds a new one otherwise. `Despawn` takes it back.
-
-The example below keeps its chips in a single row so that the reuse is easy to see. Press Add and Remove a few times,
-and the counter only goes up when more chips are showing than were ever built before. In real code a single row like
-this would be a `Repeater`.
+`ReactivePool<T>` keeps the components you despawn and hands them out again. `Spawn` reuses a despawned component when
+there is one and builds a new one otherwise, and `Despawn` takes it back. In the demo below, every click on the
+target shows its points in a popup that floats up and fades within a second, the first case above. Click quickly, and
+keep an eye on how many popups get built:
 
 <Playground showCode>
 ```csharp
-partial class ChipPool : ReactiveComponent {
-    protected override GameObject Construct() {
-        var built = Remember(0);
-        var next = 0;
-        var row = CreateRow();
+partial class Target : ReactiveComponent {
+    private ReactivePool<Popup> _pool = null!;
+    private State<int> _score = null!;
+    private State<int> _built = null!;
+    private Background _pad = null!;
 
-        var pool = new ReactivePool<Chip> {
-            // Only runs when there is nothing to reuse
+    protected override GameObject Construct() {
+        _score = Remember(0);
+        _built = Remember(0);
+
+        _pool = new ReactivePool<Popup> {
+            // Only runs when every popup is in use
             Construct = () => {
-                built.Value++;
-                return new Chip();
+                _built.Value++;
+
+                // The same for every use, so it's set once
+                return new Popup { OnFinished = Despawn };
             }
         };
 
+        _pad = CreatePad(onHit: Hit);
+
         return CreateLayout(
-            row: row,
-            status: built.Map(x => $"Chips ever built: {x}"),
-            onAdd: () => {
-                var chip = pool.Spawn();
-
-                // A reused chip still shows its old number
-                chip.Number = ++next;
-                row.Children.Add(chip);
-            },
-            onRemove: () => {
-                if (pool.SpawnedComponents.Count == 0) {
-                    return;
-                }
-
-                var chip = pool.SpawnedComponents.Last();
-
-                row.Children.Remove(chip);
-                pool.Despawn(chip);
-            }
+            pad: _pad,
+            score: _score.Map(x => $"Score: {x}"),
+            built: _built.Map(x => $"Popups built: {x}")
         );
+    }
+
+    private void Hit(PointerEventsHandler handler) {
+        var rect = ((RectTransform)handler.transform).rect;
+        var world = handler.EventData!.pointerCurrentRaycast.worldPosition;
+        Vector2 local = handler.transform.InverseTransformPoint(world);
+
+        // 100 in the middle, down to 10 in the corners
+        var distance = (local - rect.center).magnitude;
+        var ratio = distance / (rect.size.magnitude / 2f);
+        var points = 100 - Mathf.RoundToInt(ratio * 9f) * 10;
+
+        _score.Value += points;
+
+        // A reused popup still shows its last hit
+        var popup = _pool.Spawn();
+
+        popup.Text = $"+{points}";
+        // The layout counts from the top left, with y going down
+        popup.Point = new Vector2(local.x - rect.xMin, rect.yMax - local.y);
+        _pad.Children.Add(popup);
+    }
+
+    private void Despawn(Popup popup) {
+        _pad.Children.Remove(popup);
+        _pool.Despawn(popup);
+    }
+}
+
+partial class Popup : ReactiveComponent {
+    private const float Lifetime = 0.8f;
+
+    public string Text {
+        set => _label.Text = value;
+    }
+
+    public Vector2 Point {
+        set => _point.Value = value;
+    }
+
+    public Action<Popup>? OnFinished { get; set; }
+
+    // Spawn enables the popup, so a reused one starts over here
+    protected override void OnEnable() {
+        _age.Value = 0f;
+    }
+
+    protected override void OnUpdate() {
+        _age.Value += Time.deltaTime;
+
+        if (_age.Value >= Lifetime) {
+            OnFinished?.Invoke(this);
+        }
     }
 }
 ```
 ```csharp title="Ui.cs"
-class Chip : ReactiveComponent {
-    public int Number {
-        set => _number.Value = value;
-    }
+partial class Popup {
+    private const float Width = 12f;
+    private const float Height = 5f;
+    private const float Rise = 8f;
 
-    private State<int> _number = null!;
+    private State<Vector2> _point = null!;
+    private State<float> _age = null!;
+    private Label _label = null!;
 
     protected override GameObject Construct() {
-        _number = Remember(0);
+        _point = Remember(Vector2.zero);
+        _age = Remember(0f);
 
+        // Centered on the hit, then floating up as it ages
+        var position = RememberDerived(
+            _point,
+            _age,
+            predicate: (point, age) => new YogaFrame {
+                left = (point.x - Width / 2f).pt,
+                top = (point.y - Height / 2f - age / Lifetime * Rise).pt
+            }
+        );
+
+        return new Label {
+            FlexItem = {
+                PositionType = PositionType.Absolute,
+                Size = new() { x = Width.pt, y = Height.pt },
+                sPosition = position
+            },
+
+            FontSize = 4f,
+            sColor = _age.Map(x => new Color(
+                1f,
+                0.8f,
+                0.3f,
+                Mathf.Clamp01(1f - x / Lifetime)
+            ))
+        }.Bind(ref _label).Use();
+    }
+}
+
+partial class Target {
+    private static Background CreatePad(Action<PointerEventsHandler> onHit) {
         return new Background {
             FlexController = {
                 JustifyContent = Justify.Center,
@@ -84,74 +157,77 @@ class Chip : ReactiveComponent {
             },
 
             FlexItem = {
-                Size = new() { x = 9.pt, y = 6.pt }
+                Size = new() { x = 50.pct, y = 55.pct }
             },
 
             Sprite = BeatSaberResources.Sprites.background,
             PixelsPerUnit = 10f,
-            Color = new Color(0f, 0.75f, 1f, 0.6f),
+            Color = Color.white with { a = 0.1f },
+
+            Do = x => x.WithPointerEvents(onDown: onHit),
 
             Children = {
-                new Label {
-                    FontSize = 3f,
-                    sText = _number.Map(x => x.ToString())
+                new Background {
+                    FlexController = {
+                        JustifyContent = Justify.Center,
+                        AlignItems = Align.Center
+                    },
+
+                    FlexItem = {
+                        Size = 14.pt
+                    },
+
+                    Sprite = GameResources.CircleIcon,
+                    Color = Color.white with { a = 0.1f },
+
+                    Children = {
+                        new Image {
+                            FlexItem = {
+                                Size = 5.pt
+                            },
+
+                            Sprite = GameResources.CircleIcon,
+                            PreserveAspect = true,
+                            Color = Color.white with { a = 0.25f }
+                        }
+                    }
                 }
-            }
-        }.Use();
-    }
-}
-
-partial class ChipPool {
-    private static Layout CreateRow() {
-        return new Layout {
-            FlexController = {
-                JustifyContent = Justify.Center,
-                FlexWrap = Wrap.Wrap,
-                Gap = 1.pt
-            },
-
-            FlexItem = {
-                Size = new() { x = 60.pt, y = 13.pt }
             }
         };
     }
 
     [StateGen]
     private static GameObject CreateLayout(
-        Layout row,
-        IState<string> status,
-        Action onAdd,
-        Action onRemove
+        Background pad,
+        IState<string> score,
+        IState<string> built
     ) {
         return new Layout {
             FlexController = {
                 FlexDirection = FlexDirection.Column,
                 AlignItems = Align.Center,
                 JustifyContent = Justify.Center,
-                Gap = 2.pt
+                Gap = 3.pt
             },
 
             Children = {
-                row,
-
-                new Label {
-                    FontSize = 3f,
-                    Color = Color.white with { a = 0.6f },
-                    sText = status.In()
-                },
+                pad,
 
                 new Layout {
-                    FlexController = { Gap = 1.pt },
+                    FlexController = {
+                        Gap = 6.pt
+                    },
 
                     Children = {
-                        new BsTextButton {
-                            Text = "Add",
-                            OnClick = onAdd
+                        new Label {
+                            FontSize = 3.2f,
+                            sText = score.In()
                         },
 
-                        new BsTextButton {
-                            Text = "Remove",
-                            OnClick = onRemove
+                        new Label {
+                            FontSize = 3.2f,
+                            Color = Color.white with { a = 0.6f },
+                            sText = built.In()
                         }
                     }
                 }
@@ -162,74 +238,181 @@ partial class ChipPool {
 ```
 </Playground>
 
-Two things in that code are easy to miss. A pool doesn't know about `Children`, so you add a component to its parent
-after `Spawn` and remove it before `Despawn`. And a reused component keeps whatever it had, so anything that differs
-between uses, like the number here, has to be set on every spawn.
+However fast you click, the counter stops at the most popups that were on screen at once, because each finished popup
+goes back to the pool and comes out again for a later hit. A reused popup keeps whatever its last hit left on it, so
+the code splits its setup by what changes between uses. The finish callback is the same every time, so the pool's
+`Construct` sets it once. The text and place differ for every hit and get set after each `Spawn`, while the popup
+restarts its own clock in `OnEnable`, since the pool enables a component when it hands it out.
 
-Since the pool never touches a parent's `Children`, where a component goes is entirely up to you. That is the part a
-`Repeater` can't do:
+The pool doesn't know about `Children`, so you add a component to its parent after `Spawn` and remove it before
+`Despawn`. That's also what lets a component go anywhere, which a repeater can't do. A popup could just as well land
+in whichever panel matches its score:
 
 ```csharp
-var chip = pool.Spawn();
-var parent = score < 0 ? _lostPanel : _wonPanel;
+var popup = _pool.Spawn();
+var panel = points >= 50 ? _goodPanel : _okPanel;
 
-chip.Number = score;
-parent.Children.Add(chip);
+popup.Text = $"+{points}";
+panel.Children.Add(popup);
 ```
 
-| Member | What it does |
-| --- | --- |
-| `Spawn(enable: true)` | Reuses or builds a component. Pass `false` to set it up before it becomes visible. |
-| `Despawn(component)` | Takes one back. Throws if it didn't come from this pool. |
-| `DespawnLast()`, `DespawnAll()` | Take back the newest one, or all of them. |
-| `Preload(count)` | Builds components ahead of time, so the first spawns don't have to. |
-| `SpawnedComponents` | The components currently in use. |
-| `Construct` | How to build one. Without it the pool calls `new T()`. |
-| `DetachOnDespawn` | Whether a returned component leaves its parent. On by default. |
+The rest of the pool's members cover setting it up and despawning everything at once:
+
+- `Spawn(enable: true)` reuses or builds a component. With `false`, a reused one stays disabled until you enable it.
+- `Despawn(component)` takes one back, and throws for a component that didn't come from this pool.
+- `DespawnAll()` despawns every component in use, and leaves `Children` to you as well.
+- `Preload(count)` builds components ahead of time, so the first spawns don't have to.
+- `SpawnedComponents` lists the components in use.
+- `Construct` builds a new component, and without it the pool calls `new T()`.
+- `DetachOnDespawn` decides whether `Despawn` detaches the component from its parent, and is on by default.
+
+<Alert>
+    A despawned component moves to the scene root instead of staying under its parent, so it doesn't die with the
+    screen that used it. It waits there disabled until a scene change destroys it.
+</Alert>
 
 ## Keyed pools
 
-`ReactivePool<TKey, T>` tracks each spawned component under a key, so you don't need a dictionary of your own to find
-one again. `SpawnedComponents` is then a dictionary, and you can despawn by key. Like the first example, this one is
-kept small to show the calls.
+When the code that despawns a component only knows what it showed, `ReactivePool<TKey, T>` saves you a dictionary of
+your own. It files every spawned component under a key, so `SpawnedComponents` becomes a dictionary and `Despawn` can
+take the key alone. Here's an example where the key is the cell under the pointer, so press an empty cell and drag to
+paint, or press a painted one and drag to erase:
 
 <Playground showCode>
 ```csharp
-partial class KeyedChips : ReactiveComponent {
-    private readonly ReactivePool<string, Chip> _pool = new();
-    private Layout _row = null!;
+readonly record struct Cell(int X, int Y);
+
+partial class Pixels : ReactiveComponent {
+    private ReactivePool<Cell, Background> _pool = null!;
+    private State<int> _painted = null!;
+    private State<int> _built = null!;
+    private Background _board = null!;
+    private bool _erasing;
 
     protected override GameObject Construct() {
-        _row = CreateRow();
+        _painted = Remember(0);
+        _built = Remember(0);
+
+        _pool = new ReactivePool<Cell, Background> {
+            Construct = () => {
+                _built.Value++;
+                return CreateTile();
+            }
+        };
+
+        _board = CreateBoard(
+            onDown: x => {
+                // A press on a painted cell erases until it's released
+                _erasing = _pool.SpawnedComponents.ContainsKey(ToCell(x));
+                Apply(ToCell(x));
+            },
+            onDrag: x => Apply(ToCell(x))
+        );
 
         return CreateLayout(
-            row: _row,
-            keys: ["Easy", "Normal", "Hard", "Expert"]
+            board: _board,
+            painted: _painted.Map(x => $"Tiles painted: {x}"),
+            built: _built.Map(x => $"Tiles built: {x}"),
+            onClear: Clear
         );
     }
 
-    private void Toggle(string key) {
-        if (_pool.SpawnedComponents.TryGetValue(key, out var chip)) {
-            _row.Children.Remove(chip);
-            _pool.Despawn(key);
+    private void Apply(Cell cell) {
+        if (_erasing) {
+            Erase(cell);
+        } else {
+            Paint(cell);
+        }
+    }
+
+    private void Paint(Cell cell) {
+        // A drag crosses the same cell many times, but it gets one tile
+        if (_pool.SpawnedComponents.ContainsKey(cell)) {
             return;
         }
 
-        chip = _pool.Spawn(key);
-        chip.Text = key;
-        _row.Children.Add(chip);
+        var tile = _pool.Spawn(cell);
+
+        tile.Color = ColorOf(cell);
+        tile.FlexItem.Position = PositionOf(cell);
+        _board.Children.Add(tile);
+
+        _painted.Value++;
+    }
+
+    private void Erase(Cell cell) {
+        // The cell alone is enough to find its tile
+        if (!_pool.SpawnedComponents.TryGetValue(cell, out var tile)) {
+            return;
+        }
+
+        _board.Children.Remove(tile);
+        _pool.Despawn(cell);
+
+        _painted.Value--;
+    }
+
+    private void Clear() {
+        foreach (var tile in _pool.SpawnedComponents.Values) {
+            _board.Children.Remove(tile);
+        }
+
+        _pool.DespawnAll();
+        _painted.Value = 0;
     }
 }
 ```
 ```csharp title="Ui.cs"
-class Chip : ReactiveComponent {
-    public string Text {
-        set => _label.Text = value;
+partial class Pixels {
+    private const int Columns = 14;
+    private const int Rows = 7;
+    private const float CellSize = 4.5f;
+    private const float TileGap = 0.6f;
+
+    private static Background CreateTile() {
+        return new Background {
+            FlexItem = {
+                PositionType = PositionType.Absolute,
+                Size = (CellSize - TileGap).pt
+            },
+
+            Sprite = BeatSaberResources.Sprites.background,
+            PixelsPerUnit = 20f
+        };
     }
 
-    private Label _label = null!;
+    // A rainbow running from the top left corner to the bottom right one
+    private static Color ColorOf(Cell cell) {
+        var hue = (float)(cell.X + cell.Y) / (Columns + Rows);
+        return Color.HSVToRGB(hue, 0.55f, 1f);
+    }
 
-    protected override GameObject Construct() {
+    private static YogaFrame PositionOf(Cell cell) {
+        return new YogaFrame {
+            left = (cell.X * CellSize + TileGap / 2f).pt,
+            top = (cell.Y * CellSize + TileGap / 2f).pt
+        };
+    }
+
+    // The cell under the pointer, clamped to the board
+    private static Cell ToCell(PointerEventsHandler handler) {
+        var rect = ((RectTransform)handler.transform).rect;
+        var world = handler.EventData!.pointerCurrentRaycast.worldPosition;
+        Vector2 local = handler.transform.InverseTransformPoint(world);
+
+        var x = Mathf.FloorToInt((local.x - rect.xMin) / CellSize);
+        var y = Mathf.FloorToInt((rect.yMax - local.y) / CellSize);
+
+        return new Cell(
+            X: Mathf.Clamp(x, 0, Columns - 1),
+            Y: Mathf.Clamp(y, 0, Rows - 1)
+        );
+    }
+
+    private static Background CreateBoard(
+        Action<PointerEventsHandler> onDown,
+        Action<PointerEventsHandler> onDrag
+    ) {
         return new Background {
             FlexController = {
                 JustifyContent = Justify.Center,
@@ -237,48 +420,30 @@ class Chip : ReactiveComponent {
             },
 
             FlexItem = {
-                Size = new() { x = 14.pt, y = 6.pt }
+                Size = new() {
+                    x = (Columns * CellSize).pt,
+                    y = (Rows * CellSize).pt
+                }
             },
 
             Sprite = BeatSaberResources.Sprites.background,
             PixelsPerUnit = 10f,
-            Color = new Color(1f, 0.55f, 0.75f, 0.7f),
+            Color = Color.white with { a = 0.08f },
 
-            Children = {
-                new Label {
-                    FontSize = 3f
-                }.Bind(ref _label)
-            }
-        }.Use();
-    }
-}
-
-partial class KeyedChips {
-    private static Layout CreateRow() {
-        return new Layout {
-            FlexController = {
-                JustifyContent = Justify.Center,
-                Gap = 1.pt
-            },
-
-            FlexItem = {
-                Size = new() { x = 62.pt, y = 6.pt }
-            }
+            Do = x => x.WithPointerEvents(
+                onDown: onDown,
+                onDrag: onDrag
+            )
         };
     }
 
-    private GameObject CreateLayout(Layout row, string[] keys) {
-        var buttons = new Layout {
-            FlexController = { Gap = 1.pt }
-        };
-
-        foreach (var key in keys) {
-            buttons.Children.Add(new BsTextButton {
-                Text = key,
-                OnClick = () => Toggle(key)
-            });
-        }
-
+    [StateGen]
+    private static GameObject CreateLayout(
+        Background board,
+        IState<string> painted,
+        IState<string> built,
+        Action onClear
+    ) {
         return new Layout {
             FlexController = {
                 FlexDirection = FlexDirection.Column,
@@ -288,8 +453,32 @@ partial class KeyedChips {
             },
 
             Children = {
-                row,
-                buttons
+                board,
+
+                new Layout {
+                    FlexController = {
+                        AlignItems = Align.Center,
+                        Gap = 6.pt
+                    },
+
+                    Children = {
+                        new Label {
+                            FontSize = 3.2f,
+                            sText = painted.In()
+                        },
+
+                        new Label {
+                            FontSize = 3.2f,
+                            Color = Color.white with { a = 0.6f },
+                            sText = built.In()
+                        },
+
+                        new BsTextButton {
+                            Text = "Clear",
+                            OnClick = onClear
+                        }
+                    }
+                }
             }
         }.Use();
     }
@@ -297,62 +486,83 @@ partial class KeyedChips {
 ```
 </Playground>
 
-`Spawn(key)` always takes a new component and throws if the key is already in use. `Get(key)` returns the component
-under that key, and spawns one if there is none. `TryDespawn(key)` does nothing when the key isn't there.
+A drag crosses the same cell many times, and painting looks the cell up first, so it never gets a second tile. Erasing
+has nothing but the cell either, and the key is enough to find its tile. A plain pool only lists its components, so it
+could do neither without a dictionary from cells to tiles that you'd keep in step with it on every change. Erase a few
+tiles and paint somewhere else, and the built counter stays put, since the new tiles reuse the erased ones. The keyed
+pool adds three calls to the plain one:
+
+- `Spawn(key)` reuses or builds a component for the key, and throws if the key is already in use.
+- `Get(key)` returns the component under the key, and spawns one when there's none.
+- `TryDespawn(key)` works like `Despawn(key)`, but does nothing when the key isn't there.
 
 ## GlobalReactivePool
 
-`GlobalReactivePool` is one static pool for every component that implements `IPoolableComponent`. Reach for it when a
-component is expensive to build and many screens need it, but rarely at the same time. It outlives those screens, so a
-toast built on one is reused on every other. Returned components wait under an inactive object that survives scene
-changes.
+`GlobalReactivePool` is one static pool for every component that implements `IPoolableComponent`. It's meant for a
+component that's expensive to build and needed by many screens, but rarely by two at once, so one built for one screen
+serves all the others. Despawned components wait under an inactive object that survives scene changes, which lets the
+pool outlive every screen that uses it.
 
-The interface asks for two methods. `OnSpawn` runs every time the pool hands the component out, including the first,
-so reset what should start over there. `OnDespawn` runs when it comes back. Drop everything the last user set, above
-all callbacks, because the next user expects what looks like a new instance.
+A plain pool has one owner, which knows everything it sets on a component and can reset that on its own. Here the
+next user can be any screen that never saw what the last one set, so the component has to reset itself, and the
+interface asks for two methods for that:
+
+- `OnSpawn` runs every time the pool hands the component out, the first time included, and resets what should start
+  over.
+- `OnDespawn` runs when the component comes back, and drops everything the last user set, callbacks above all, so the
+  next user gets what looks like a new instance.
+
+Below you can see both in a toast that fades out on its own:
 
 <Playground showCode>
 ```csharp
 partial class Toasts : ReactiveComponent {
     private const int MaxToasts = 3;
 
+    // Children is a set, so the order the toasts came in is kept here
+    private readonly List<Toast> _shown = new();
+
+    private Layout _list = null!;
     private State<int> _built = null!;
-    private Layout _toasts = null!;
-    private int _next;
+    private int _sent;
 
     protected override GameObject Construct() {
+        _list = CreateList();
         _built = Remember(Toast.Built);
-        _toasts = CreateToastList();
 
         return CreateLayout(
-            toasts: _toasts,
+            list: _list,
             status: _built.Map(x => $"Toasts ever built: {x}"),
             onNotify: Notify
         );
     }
 
     private void Notify() {
-        if (_toasts.Children.Count >= MaxToasts) {
-            Despawn((Toast)_toasts.Children.First());
+        // Makes room by despawning the oldest toast
+        if (_shown.Count >= MaxToasts) {
+            Despawn(_shown[0]);
         }
 
         var toast = GlobalReactivePool.Spawn<Toast>();
 
-        toast.Text = $"Notification #{++_next}";
+        toast.Text = $"Notification #{++_sent}";
         toast.OnFinished = Despawn;
-        _toasts.Children.Add(toast);
+
+        _list.Children.Add(toast);
+        _shown.Add(toast);
 
         _built.Value = Toast.Built;
     }
 
     private void Despawn(Toast toast) {
-        _toasts.Children.Remove(toast);
+        _shown.Remove(toast);
+        _list.Children.Remove(toast);
         GlobalReactivePool.Despawn(toast);
     }
 
-    // Toasts still showing would otherwise be destroyed along with this
+    // Toasts still showing would be destroyed along with this screen
     protected override void OnDestroy() {
-        foreach (var toast in _toasts.Children.OfType<Toast>().ToArray()) {
+        foreach (var toast in _shown.ToArray()) {
             Despawn(toast);
         }
     }
@@ -361,9 +571,13 @@ partial class Toasts : ReactiveComponent {
 partial class Toast : ReactiveComponent, IPoolableComponent {
     private const float Lifetime = 2.5f;
 
+    // The global pool builds toasts with new Toast(), so they count
+    // themselves
     public static int Built { get; private set; }
 
     public Action<Toast>? OnFinished { get; set; }
+
+    private State<float> _age = null!;
 
     protected override void OnUpdate() {
         _age.Value += Time.deltaTime;
@@ -373,12 +587,12 @@ partial class Toast : ReactiveComponent, IPoolableComponent {
         }
     }
 
-    // A reused toast would otherwise finish right away
+    // Without this, a reused toast would start out expired
     void IPoolableComponent.OnSpawn() {
         _age.Value = 0f;
     }
 
-    // Otherwise the next user's toast calls back into this user
+    // Without this, the next screen's toast would call back into this one
     void IPoolableComponent.OnDespawn() {
         OnFinished = null;
     }
@@ -391,7 +605,6 @@ partial class Toast {
     }
 
     private Label _label = null!;
-    private State<float> _age = null!;
 
     protected override GameObject Construct() {
         Built++;
@@ -410,6 +623,7 @@ partial class Toast {
             Sprite = BeatSaberResources.Sprites.background,
             PixelsPerUnit = 10f,
 
+            // Fades out over the last second
             sColor = _age.Map(x => new Color(
                 0f,
                 0.75f,
@@ -427,7 +641,7 @@ partial class Toast {
 }
 
 partial class Toasts {
-    private static Layout CreateToastList() {
+    private static Layout CreateList() {
         return new Layout {
             FlexController = {
                 FlexDirection = FlexDirection.Column,
@@ -443,7 +657,7 @@ partial class Toasts {
 
     [StateGen]
     private static GameObject CreateLayout(
-        Layout toasts,
+        Layout list,
         IState<string> status,
         Action onNotify
     ) {
@@ -467,7 +681,7 @@ partial class Toasts {
                     sText = status.In()
                 },
 
-                toasts
+                list
             }
         }.Use();
     }
@@ -475,26 +689,16 @@ partial class Toasts {
 ```
 </Playground>
 
-`Spawn<T>()`, `Despawn(component)` and `Preload<T>(count)` are all there is to it. A spawned component stays under the
-pool's inactive object until you add it somewhere, and `Despawn` throws for one that didn't come from the pool.
+Fire a few in a row, and the counter never goes past three, the most toasts the demo shows at once. Each toast counts
+its age in `OnUpdate`, so without the reset in `OnSpawn` a reused one would finish right away, and without clearing
+the callback in `OnDespawn` it would call back into whoever used it last.
 
-This is the case the SDK's own dropdown lists, keyboards and color circles fall into. They are pooled this way through
-`SharedModal`, which is why a screen with twenty dropdowns builds one list.
-[Modals and Dialogs](/docs/sdk/modals#shared-modals) has the details.
+`Spawn<T>()`, `Despawn(component)` and `Preload<T>(count)` are all the global pool has. A spawned component stays under
+the pool's inactive object until you add it somewhere, and `Despawn` throws for one the pool didn't hand out. The SDK's
+dropdown lists, keyboards and color circles are pooled this way through `SharedModal`, so a screen with twenty
+dropdowns builds a single list, and [Modals and Dialogs](/docs/sdk/modals#shared-modals) covers how.
 
-## What a returned component still does
-
-A `Repeater` takes care of all of this for its cells. With a pool it is on you. Despawning is not destroying, and
-most pooling bugs come from forgetting that.
-
-- **Its callbacks stay subscribed.** A component that isn't destroyed still counts as alive, so `AddCallback(this, ...)`
-  on a shared state keeps firing while it waits in the pool. Keep the `StateSubscription` and call `RemoveCallback()`
-  when the component is returned.
-- **Its `OnUpdate` stops.** A returned component is inactive, so timers and animations pause and pick up where they
-  left off on the next spawn. Restart them explicitly.
-- **It may outlive its owner.** With `DetachOnDespawn` on, a returned component has no parent, so it doesn't die with
-  the screen that used it. A scene change destroys it, and the pool skips destroyed components on the next `Spawn`. Set
-  `DetachOnDespawn = false` to keep returned components under their parent and let them die with it.
-- **In use, it dies with its parent.** A component that is still showing is destroyed along with the hierarchy around
-  it, and a pool can't reuse it after that. With `GlobalReactivePool`, despawn what you are showing in `OnDestroy`, as
-  the toast example does, or the pool has to build those again.
+<Alert>
+    Don't forget that a component still showing dies with its parent like any other, and no pool can reuse it after
+    that. Despawn what's showing in `OnDestroy`, or the global pool will have to build it again.
+</Alert>

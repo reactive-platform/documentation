@@ -5,67 +5,105 @@ description: "Animating a target with reusable animations: tracks, chaining, rep
 
 ## Animation players
 
-An animated state animates a value. An animation player animates a *target*, usually a component. It fades it in,
-scales it up, spins it. The player is the tool for entrances, exits and sequences, where "head for this value" is not
-the shape of the problem.
+An animated state moves a single value toward a target, while an animation player plays a prepared animation on a
+whole target, usually a component. That suits entrances, exits and sequences, where you want to fade something in or
+pop it up rather than steer a value. Play the animation on this box, or drag along the timeline under it to scrub
+through it:
 
 <Playground showCode>
 ```csharp
 partial class PlayerDemo : ReactiveComponent {
-    private static readonly Animation<IReactiveComponent> Grow = new(
-        Track: AnimationTracks.Scale(0.3f, 1f),
-        Duration: 1.5f.sec,
-        Curve: AnimationCurve.EaseOutCubic
+    private static readonly Animation<IReactiveComponent> PopIn = new(
+        Track: AnimationTracks.Fade(0f, 1f)
+            + AnimationTracks.Create<IReactiveComponent>(Pop),
+        Duration: 1500.ms
     );
 
-    private static readonly Animation<IReactiveComponent> FadeOut = new(
-        Track: AnimationTracks.Fade(1f, 0f),
-        Duration: 400.ms
-    );
-
-    private static readonly Animation<IReactiveComponent> FadeIn = new(
-        Track: AnimationTracks.Fade(0f, 1f),
-        Duration: 400.ms
-    );
+    private AnimationPlayer<IReactiveComponent> _player = null!;
+    private State<float> _time = null!;
+    private State<string> _toggleText = null!;
 
     protected override GameObject Construct() {
         var box = CreateBox();
 
-        // The player needs its target, and stops together with this component
-        var player = RememberAnimationPlayer<IReactiveComponent>(box);
+        _time = Remember(0f);
+        _toggleText = Remember("Pause");
+        _player = RememberAnimationPlayer<IReactiveComponent>(box);
+        _player.Play(PopIn);
 
         return CreateLayout(
             box: box,
+            timeline: CreateTimeline(
+                time: _time,
+                duration: PopIn.Duration.Seconds,
+                onScrub: x => PauseAt(x * PopIn.Duration.Seconds)
+            ),
             buttons: [
+                new BsTextButton {
+                    sText = _toggleText,
+                    OnClick = Toggle
+                },
+
                 CreateButton(
-                    text: "Grow",
-                    onClick: () => player.Play(Grow)
+                    text: "Reset",
+                    onClick: () => PauseAt(0f)
                 ),
 
                 CreateButton(
-                    text: "Stop",
-                    onClick: () => player.Stop()
-                ),
-
-                CreateButton(
-                    text: "Finish",
-                    onClick: () => player.Finish()
-                ),
-
-                CreateButton(
-                    text: "Round trip",
-                    onClick: () => player.Play(
-                        animation: FadeOut,
-                        onFinished: () => player.Play(FadeIn)
-                    )
+                    text: "Complete",
+                    onClick: () => _player.Complete()
                 )
             ]
         );
+    }
+
+    // Holds the animation at a time in seconds. A completed animation is
+    // gone, so it's loaded again first
+    private void PauseAt(float time) {
+        if (_player.Animation == null) {
+            _player.Play(PopIn);
+        }
+
+        _player.Pause();
+        _player.Seek(time);
+    }
+
+    // Pauses, resumes, or plays again once the animation has completed
+    private void Toggle() {
+        if (_player.IsPlaying) {
+            _player.Pause();
+        } else if (_player.Animation == null) {
+            _player.Play(PopIn);
+        } else {
+            _player.Resume();
+        }
+    }
+
+    // The timeline and the toggle follow the player
+    protected override void OnUpdate() {
+        _time.Value = _player.Time / PopIn.Duration.Seconds;
+
+        _toggleText.Value = _player.IsPlaying ? "Pause"
+            : _player.Animation != null && _player.Time > 0f ? "Resume"
+            : "Play";
+    }
+
+    // Pops up with an overshoot and wobbles until it rests
+    private static void Pop(IReactiveComponent box, float t) {
+        var scale = AnimationCurve.EaseOutBack.Evaluate(t);
+        var angle = Mathf.Sin(t * Mathf.PI * 4f) * (1f - t) * 20f;
+
+        box.ContentTransform.localScale =
+            Vector3.one * Mathf.LerpUnclamped(0.3f, 1f, scale);
+        box.ContentTransform.localEulerAngles = new(0f, 0f, angle);
     }
 }
 ```
 ```csharp title="Ui.cs"
 partial class PlayerDemo {
+    private const float TimelineWidth = 60f;
+    private const float HandleSize = 4f;
+
     private static Background CreateBox() {
         return new Background {
             FlexItem = { Size = 14.pt },
@@ -82,6 +120,99 @@ partial class PlayerDemo {
         };
     }
 
+    [StateGen]
+    private static Layout CreateTimeline(
+        IState<float> time,
+        float duration,
+        Action<float> onScrub
+    ) {
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                Gap = 1.5f.pt
+            },
+
+            Children = {
+                new Background {
+                    FlexController = {
+                        AlignItems = Align.Center
+                    },
+
+                    FlexItem = {
+                        Size = new() { x = TimelineWidth.pt, y = 2.pt }
+                    },
+
+                    Sprite = BeatSaberResources.Sprites.background,
+                    PixelsPerUnit = 10f,
+                    Color = Color.white with { a = 0.15f },
+
+                    Do = x => x.WithPointerEvents(
+                        onDown: h => onScrub(ToProgress(h)),
+                        onDrag: h => onScrub(ToProgress(h))
+                    ),
+
+                    Children = {
+                        // What has played so far
+                        new Background {
+                            FlexItem = {
+                                PositionType = PositionType.Absolute,
+                                Position = new() {
+                                    left = 0.pt,
+                                    top = 0.pt,
+                                    bottom = 0.pt
+                                },
+                                sSize = time.Map(x => new YogaVector(
+                                    (Mathf.Clamp01(x) * 100f).pct,
+                                    YogaValue.Auto
+                                )).In()
+                            },
+
+                            Sprite = BeatSaberResources.Sprites.background,
+                            PixelsPerUnit = 10f,
+                            Color = new Color(0f, 0.75f, 1f)
+                        },
+
+                        // The playhead
+                        new Image {
+                            FlexItem = {
+                                PositionType = PositionType.Absolute,
+                                Size = HandleSize.pt,
+                                sPosition = time.Map(x => new YogaFrame {
+                                    left = (
+                                        Mathf.Clamp01(x)
+                                        * (TimelineWidth - HandleSize)
+                                    ).pt
+                                }).In()
+                            },
+
+                            Sprite = GameResources.CircleIcon,
+                            PreserveAspect = true,
+                            Color = Color.white
+                        }
+                    }
+                },
+
+                new Label {
+                    FontSize = 2.6f,
+                    Color = Color.white with { a = 0.6f },
+                    sText = time.Map(x =>
+                        $"{Mathf.Clamp01(x) * duration:0.0}s / {duration:0.0}s"
+                    ).In()
+                }
+            }
+        };
+    }
+
+    // Where the pointer is along the timeline, from 0 to 1
+    private static float ToProgress(PointerEventsHandler handler) {
+        var rect = ((RectTransform)handler.transform).rect;
+        var world = handler.EventData!.pointerCurrentRaycast.worldPosition;
+        Vector2 local = handler.transform.InverseTransformPoint(world);
+
+        return Mathf.Clamp01((local.x - rect.xMin) / rect.width);
+    }
+
     private static Layout CreateRow(BsTextButton[] buttons) {
         var row = new Layout {
             FlexController = { Gap = 1.pt }
@@ -96,6 +227,7 @@ partial class PlayerDemo {
 
     private static GameObject CreateLayout(
         ILayoutItem box,
+        ILayoutItem timeline,
         BsTextButton[] buttons
     ) {
         return new Layout {
@@ -108,6 +240,7 @@ partial class PlayerDemo {
 
             Children = {
                 box,
+                timeline,
                 CreateRow(buttons)
             }
         }.Use();
@@ -116,29 +249,38 @@ partial class PlayerDemo {
 ```
 </Playground>
 
-An `Animation<T>` is an immutable description: a track and a duration, plus an optional curve, iteration count and
-direction. It can live in a static field and be shared between players. `RememberAnimationPlayer(target)` creates a
-player for a target that already exists and binds it to the calling component as a module, so it ticks with the
-component and stops with it.
+The box fades in, pops up past its size and wobbles until it rests, while the playhead runs along the timeline. The
+first button pauses and resumes it, Reset holds it at the start, and Complete jumps to the end. Dragging the timeline
+pauses the player and seeks to that point, so you can scrub back and forth and resume from wherever you let go.
 
-`Play` starts an animation and replaces whatever was playing. It applies the first frame immediately, so the target
-doesn't sit at the old values for a frame. `Stop` freezes the target where it is. `Finish` jumps to the end. The
-callback on `Play` runs when the animation completes, which is how you chain animations. `IsPlaying`, `Animation` and
-`Iteration` report what is going on.
+Each animation is an `Animation<T>`, a record with a track and a duration, plus an optional curve, iteration count and
+direction. It never changes, so it can live in a static field and be shared by any number of players. The player comes
+from `RememberAnimationPlayer`, which takes a target that already exists and attaches the player to your component, so
+it only runs while the component is active and stops when it's destroyed. The player itself has these members:
+
+- `Play` starts an animation from the beginning and takes a callback for when it finishes.
+- `Pause` holds the animation where it is, and `Resume` carries on from there.
+- `Seek` jumps to a time in seconds, even while the animation is paused.
+- `Complete` jumps to the end and runs the finish callback.
+- `Cancel` drops the animation where it is, without running the callback.
+- `IsPlaying` tells whether the animation is moving, and `Time` how far it has got.
+- `Animation` is the one that's loaded, and `Iteration` the run it's on, counting from 0.
+
+Calling `Play` again inside that finish callback chains two animations one after the other.
 
 ## Tracks
 
-A track is what an animation does with its progress. It is a single method, `Apply(target, progress)`.
-`AnimationTracks.Fade` goes through a `CanvasGroup` on the target. `AnimationTracks.Scale` sets the transform's scale.
-`+` runs two tracks together, and `AnimationTracks.Create` turns any function of the target and the progress into a
-track.
+A track is what an animation does to its target as the progress goes from 0 to 1, and it has a single method,
+`Apply(target, progress)`. `AnimationTracks` has ready tracks for fading and scaling, `+` runs two tracks together, and
+`Create` turns any function into a track, as these three buttons show:
 
 <Playground showCode>
 ```csharp
 partial class TracksDemo : ReactiveComponent {
     // Two tracks at once
     private static readonly Animation<IReactiveComponent> Pop = new(
-        Track: AnimationTracks.Scale(0.4f, 1f) + AnimationTracks.Fade(0.3f, 1f),
+        Track: AnimationTracks.Scale(0.4f, 1f)
+            + AnimationTracks.Fade(0.3f, 1f),
         Duration: 450.ms,
         Curve: AnimationCurve.EaseOutBack
     );
@@ -163,7 +305,7 @@ partial class TracksDemo : ReactiveComponent {
     protected override GameObject Construct() {
         var box = CreateBox();
 
-        // The player needs its target, and stops together with this component
+        // Runs while this component is active
         var player = RememberAnimationPlayer<IReactiveComponent>(box);
 
         return CreateLayout(
@@ -240,16 +382,26 @@ partial class TracksDemo {
 ```
 </Playground>
 
-`.For(selector)` points a track written for one type at a part of another, so a fade written for components can
-target a card's icon. The target doesn't have to be a component. A player over a `State<float>` with a track that
-writes `x.Value = t` drives a plain state, and that state then binds to anything.
+Pop scales and fades at once, and it overshoots a little because its curve pushes the progress past 1 before the track
+gets it. Spin and Wobble are made with `Create`, so they can change anything on the target, here its rotation. The
+fade goes through a `CanvasGroup`, so fading a component fades everything inside it as well.
+
+A track made for one type can also be pointed at a part of another with `For`. Since the fade works on any component,
+it can fade only a card's icon while the card stays the player's target:
+
+```csharp
+// The card is the player's target, and the icon is what fades
+var fadeIcon = AnimationTracks.Fade(0f, 1f).For((Card x) => x.Icon);
+```
+
+The selector runs every time the track is applied, which is every frame while the animation plays, so it should only
+pick a part the target already has. Looking up a child or creating something there would repeat that work each frame.
 
 ## Repeating and direction
 
-`Iterations` is how many times the animation plays. It can be a number like `3`, a fraction like `2.5f` to stop
-partway through the last run, or `AnimationIteration.Infinite` to repeat until stopped. `Finish` on an infinite
-animation completes the run it is in. Because `Animation` is a record, `beat with { Iterations = 3 }` makes a variant
-without touching the shared one.
+`Iterations` sets how many times an animation plays. It takes a whole number, a fraction like `2.2f` that stops partway
+through the last run, or `AnimationIteration.Infinite` to repeat until stopped. Since `Animation` is a record, `with`
+makes a copy with a different count and leaves the shared one alone, so every button below plays the same beat:
 
 <Playground showCode>
 ```csharp
@@ -284,8 +436,8 @@ partial class RepeatingDemo : ReactiveComponent {
                 ),
 
                 CreateButton(
-                    text: "2.5 times",
-                    onClick: () => Play(2.5f)
+                    text: "2.2 times",
+                    onClick: () => Play(2.2f)
                 ),
 
                 CreateButton(
@@ -295,13 +447,13 @@ partial class RepeatingDemo : ReactiveComponent {
             ],
             controls: [
                 CreateButton(
-                    text: "Stop",
-                    onClick: () => _player.Stop()
+                    text: "Cancel",
+                    onClick: () => _player.Cancel()
                 ),
 
                 CreateButton(
-                    text: "Finish",
-                    onClick: () => _player.Finish()
+                    text: "Complete",
+                    onClick: () => _player.Complete()
                 )
             ]
         );
@@ -382,10 +534,17 @@ partial class RepeatingDemo {
 ```
 </Playground>
 
-`Direction` behaves as in CSS. `Normal` plays every run forwards. `Reverse` plays every run backwards. `Alternate`
-flips every other run, so a repeat continues from where the last one ended instead of jumping back, which is what
-anything that loops visibly wants. `AlternateReverse` is the same, starting backwards. The curve applies to the
-directed progress, so a reversed ease-in feels like an ease-out.
+The label counts the runs from 0 while the box beats, and 2.2 times stops partway through the third beat. Pressing
+Complete during Forever completes only the beat in progress, since an endless animation has no end to jump to.
+
+`Direction` works as in CSS and decides which way each run plays:
+
+- `Normal` plays every run forward.
+- `Reverse` plays every run backward.
+- `Alternate` flips every other run, so a repeat continues from where the last one ended.
+- `AlternateReverse` does the same but starts backward.
+
+Here all four play the same animation side by side:
 
 <Playground showCode>
 ```csharp
@@ -413,8 +572,8 @@ partial class DirectionDemo : ReactiveComponent {
                 ),
 
                 CreateButton(
-                    text: "Stop",
-                    onClick: () => _rows.ForEach(x => x.Player.Stop())
+                    text: "Cancel",
+                    onClick: () => _rows.ForEach(x => x.Player.Cancel())
                 )
             ],
             rows: [
@@ -552,3 +711,6 @@ partial class DirectionDemo {
 }
 ```
 </Playground>
+
+With Loop, the two alternating dots swing back and forth, while the other two jump back to their start after every
+run. The curve goes over the directed progress, so a reversed ease-in plays like an ease-out, the same as on the web.

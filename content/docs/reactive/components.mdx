@@ -171,8 +171,14 @@ class CounterCard : ReactiveComponent {
 
 `Title` forwards to a label inside the tree. That works because the tree exists before the initializer runs. A
 public property on a component is usually either a forwarder like this one, or a property backed by a private state
-that the component's own tree binds to. [Property Bindings](/docs/reactive/state/bindings#nested-objects-and-your-own-components)
+that the component's own tree binds to. [Property Bindings](/docs/reactive/state/bindings#nested-objects-and-your-components)
 shows the second shape.
+
+<Alert>
+    Expose a component's settings as properties, not as public methods like `SetTitle()`. A property can be set in an
+    object initializer and gets an s-property you can bind to a state, while a method can only be called after the
+    component is built.
+</Alert>
 
 ## Lifecycle
 

@@ -26,6 +26,9 @@ in-browser Playground. The docs cover Reactive 2.0.0.
 - Use plain wording, and avoid "which is why" constructions.
 - Aim for sentences of about 18 words. Don't split one thought into 3-4 short ones, and don't chain several thoughts
   into one long one.
+- Make each sentence follow from the one before it, so a paragraph reads as one line of thought rather than a list of
+  facts. Link them with words like "so", "that works because" or "the second", and move a fact that doesn't connect to
+  where it does.
 - Keep related points in one paragraph. Don't add paragraphs when rewriting a section, keep the count it already has.
 - Before an example, explain what it does in a sentence or two, in its own paragraph ending with a colon. Say that an
   example follows, in wording no other example on the page shares, like "Here's an example", "Below you can see" or

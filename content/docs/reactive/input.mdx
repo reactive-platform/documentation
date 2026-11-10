@@ -5,26 +5,42 @@ description: "Pointer events, interaction state with GraphicState and ColorSet, 
 
 ## Pointer events
 
-Reactive has no input system of its own. Input comes from Unity's event system. The library adds one thing on top: a
-way to attach handlers to a graphic, and a habit of turning what they report into state.
+Reactive has no input system of its own, and input comes from Unity's event system. The library only adds a way to
+attach handlers to a graphic, along with the habit of turning what they report into state.
 
-`WithPointerEvents` attaches a handler to any graphic component, meaning anything with an image or text that the event
-system can hit, and calls you back.
+`WithPointerEvents` attaches a handler to any graphic component, meaning anything with an image or text the event system
+can hit. Try this demo, where a box logs every event it gets and shows the handler's flags below it:
 
 <Playground>
 ```csharp excerpt
+var graphic = Remember(GraphicState.None);
+
 new Background {
+    sColor = graphic.MapColorSet(Colors),
+
     Do = x => x.WithPointerEvents(
-        onEnter: _ => hovered.Value = true,
-        onLeave: _ => hovered.Value = false,
-        onDown: _ => clicks.Value++,
-        onScroll: h => value.Value += h.EventData?.scrollDelta.y > 0f ? 1 : -1
+        onEnter: _ => Log("enter"),
+        onLeave: _ => Log("leave"),
+        onDown: _ => Log("down"),
+        onUp: _ => Log("up"),
+
+        // Runs after every other callback
+        onUpdate: h => {
+            graphic.IsHovered = h.IsHovered;
+            graphic.IsActive = h.IsPressed;
+        }
     )
 }
 ```
 ```csharp
 class PointerEvents : ReactiveComponent {
     private const int LogSize = 4;
+
+    private static readonly ColorSet Colors = new() {
+        Color = Color.white with { a = 0.1f },
+        HoveredColor = new Color(0f, 0.75f, 1f, 0.6f),
+        ActiveColor = new Color(1f, 0.2f, 0.8f, 0.8f)
+    };
 
     private readonly record struct Entry(int Number, string Text);
 
@@ -34,24 +50,7 @@ class PointerEvents : ReactiveComponent {
     protected override GameObject Construct() {
         _log = Remember<IReadOnlyList<Entry>>([]);
 
-        var hovered = Remember(false);
-        var pressed = Remember(false);
-        var dragging = Remember(false);
-
-        var color = RememberDerived(
-            hovered, pressed,
-            (h, p) => p
-                ? new Color(1f, 0.2f, 0.8f, 0.8f)
-                : h
-                    ? new Color(0f, 0.75f, 1f, 0.6f)
-                    : Color.white with { a = 0.1f }
-        );
-
-        var flags = RememberDerived(
-            hovered, pressed, dragging,
-            (h, p, d) =>
-                $"hovered {Mark(h)}   pressed {Mark(p)}   dragging {Mark(d)}"
-        );
+        var graphic = Remember(GraphicState.None);
 
         return new Layout {
             FlexController = {
@@ -74,7 +73,7 @@ class PointerEvents : ReactiveComponent {
 
                     Sprite = BeatSaberResources.Sprites.background,
                     PixelsPerUnit = 10f,
-                    sColor = color,
+                    sColor = graphic.MapColorSet(Colors),
 
                     Do = x => x.WithPointerEvents(
                         onEnter: _ => Log("enter"),
@@ -87,12 +86,10 @@ class PointerEvents : ReactiveComponent {
                             $"scroll {h.EventData?.scrollDelta.y:0.0}"
                         ),
 
-                        // Runs after any of the others: the place to copy the
-                        // handler's flags into states
+                        // Runs after every other callback
                         onUpdate: h => {
-                            hovered.Value = h.IsHovered;
-                            pressed.Value = h.IsPressed;
-                            dragging.Value = h.IsDragging;
+                            graphic.IsHovered = h.IsHovered;
+                            graphic.IsActive = h.IsPressed;
                         }
                     ),
 
@@ -106,7 +103,9 @@ class PointerEvents : ReactiveComponent {
 
                 new Label {
                     FontSize = 3f,
-                    sText = flags
+                    sText = graphic.Map(x =>
+                        $"hovered {Mark(x.IsHovered)}   pressed {Mark(x.IsActive)}"
+                    )
                 },
 
                 new Label {
@@ -132,20 +131,32 @@ class PointerEvents : ReactiveComponent {
 ```
 </Playground>
 
-The callbacks are `onEnter`, `onLeave`, `onDown`, `onUp`, `onDrag`, `onDragBegin`, `onDragEnd`, `onScroll` and
-`onUpdate`, which runs after any of the others. Each one receives the handler. The handler keeps `IsHovered`,
-`IsPressed` and `IsDragging`, and the latest `EventData` from Unity. The `Do = x => ...` is how you call a method on
-the component from inside an initializer.
+Hover the box, click it, drag across it and scroll over it, and watch the log and the flags change. Each callback
+receives the handler, which keeps `IsHovered`, `IsPressed`, `IsDragging` and the latest event data from Unity, and each
+one runs at a different point of an interaction:
 
-The handlers above do one thing each: they write a state. An event says that something happened. A state says what
-is true now. Once hover or press is a state, the color, the scale and the text are bindings on it. The handlers stay
-one line each, and adding a second thing that reacts to hovering doesn't touch them.
+- `onEnter` when the pointer moves onto the graphic or a child from outside them.
+- `onLeave` when the pointer leaves the graphic and its children.
+- `onDown` when a press starts over it, unless a child with its own handler takes it.
+- `onUp` when that press ends, wherever the pointer is, so every `onDown` gets an `onUp`.
+- `onDragBegin` once a press moves past the drag threshold.
+- `onDrag` on every move during a drag, even over other graphics.
+- `onDragEnd` when a drag is released, right after `onUp`.
+- `onScroll` on a scroll, which goes to the parent when this callback is missing.
+- `onUpdate` after each of the others and on moves, every hovered frame in the game.
+
+If the object is disabled in the middle of an interaction, the handler sends the matching leave, up and drag end
+itself, so no state gets stuck.
 
 ## Interaction state
 
-Every interactive component in the SDK is built from two types, and so can yours. `GraphicState` is a set of flags,
-`Hovered`, `Active` and `NonInteractable`, with helpers to flip one at a time on a state that holds it. `ColorSet` maps
-every combination of those flags to a color and falls back to the plain `Color` for the combinations you don't set.
+The first demo already used the two types every interactive component in the SDK is built from. The first,
+`GraphicState`, holds the flags for hovered, active and not interactable, and its properties flip one flag at a time on
+a state that holds it. The second, `ColorSet`, turns those flags into a color, with one for each combination and a
+fallback to the closest one you set, then to the plain `Color`. `MapColorSet` connects the two by turning a graphic
+state into a color state you can bind.
+
+Below you can see a button built from both, with a toggle that turns off its interactability:
 
 <Playground>
 ```csharp excerpt
@@ -159,7 +170,7 @@ static readonly ColorSet colors = new() {
 var graphic = Remember(GraphicState.None);
 
 new Background {
-    sColor = graphic.Map(x => colors.GetColor(x)),
+    sColor = graphic.MapColorSet(colors),
 
     Do = x => x.WithPointerEvents(
         onEnter: _ => graphic.IsHovered = true,
@@ -216,7 +227,7 @@ class OwnButton : ReactiveComponent {
 
                     Sprite = BeatSaberResources.Sprites.background,
                     PixelsPerUnit = 10f,
-                    sColor = graphic.Map(x => backgroundColors.GetColor(x)),
+                    sColor = graphic.MapColorSet(backgroundColors),
 
                     Do = x => x.WithPointerEvents(
                         onEnter: _ => graphic.IsHovered = true,
@@ -235,7 +246,7 @@ class OwnButton : ReactiveComponent {
                         new Label {
                             FontSize = 4f,
                             sText = clicks.Map(x => $"Clicked {x}"),
-                            sColor = graphic.Map(x => textColors.GetColor(x))
+                            sColor = graphic.MapColorSet(textColors)
                         }
                     }
                 },
@@ -260,75 +271,63 @@ class OwnButton : ReactiveComponent {
 ```
 </Playground>
 
-The pointer events flip flags. The color is the flags passed through the color set. A press scale is an animated
-state that reads the same flags. A label's color is one more `Map`. Making the thing non-interactable is
-`graphic.IsInteractable = false`, and every color set reacts, with no special case in any handler. The SDK's `Colors`
-records are several color sets, one per part of a component. The [SDK overview](/docs/sdk#styling) covers them.
+Hover and press the button, then switch it off with the toggle, and its color and press scale follow without any handler
+knowing about the toggle. That works because the pointer events only flip flags and everything else reads them: the
+background and the label each pass the flags through their own color set, and the press scale is an animated state
+reading the same flags. So switching the button off is just `graphic.IsInteractable = false`, and every color set
+reacts to it with no special case anywhere. The SDK's components work the same way, with a `Colors` record that holds
+one color set for each part of a component.
 
 ## Input that lasts
 
-Events say when a press starts and ends. Holding and dragging are about what happens in between, and in between is
-time. So the event is stored as state, and `OnUpdate` does the rest.
+Events tell you when a press starts and ends, but a hold is about what happens in between, and that takes time. So the event is stored as state, and something that runs over time, an animation or `OnUpdate`, does the
+rest.
 
-For a hold, `onDown` sets a pressed state, `onUp` and `onLeave` clear it, and `OnUpdate` fills a progress state while
-it is set and drains it while it is not. When the progress reaches the end, confirm once and wait for a release.
+For a hold, `onDown` sets a pressed state and `onUp` and `onLeave` clear it. An animated progress then fills while it's
+set and drains when it's cleared, and finishing a fill confirms once, as this hold-to-confirm button shows:
 
 <Playground>
 ```csharp excerpt
+pressed.AddCallback(x => {
+    progress.Timing = x ? 1200.ms : (progress.Value * 1200 / 3f).ms;
+    progress.TargetValue = x ? 1f : 0f;
+});
+
+// Drop the press once full, so the bar drains even if still held
+progress.OnFinish = x => {
+    if (x >= 1f) {
+        confirmed.Value++;
+        pressed.Value = false;
+    }
+};
+
 new Background {
-    // The events only store whether the button is held
     Do = x => x.WithPointerEvents(
-        onDown: _ => _pressed.Value = true,
-        onUp: _ => Release(),
-        onLeave: _ => Release()
-    ),
-
-    Children = {
-        // The progress shows as the width of a fill
-        new Background {
-            FlexItem = {
-                sSize = _progress.Map(x => new YogaVector(
-                    (x * Width).pt,
-                    YogaValue.Auto
-                ))
-            }
-        }
-    }
-}
-
-// Everything that takes time happens here
-protected override void OnUpdate() {
-    var holding = _pressed.Value && !_waitingForRelease;
-
-    // Filling takes the hold time, draining is three times faster
-    var step = Time.deltaTime / HoldTime * (holding ? 1f : -3f);
-    _progress.Value = Mathf.Clamp01(_progress.Value + step);
-
-    if (holding && _progress.Value >= 1f) {
-        _confirmed.Value++;
-        _waitingForRelease = true;
-    }
-}
-
-private void Release() {
-    _pressed.Value = false;
-    _waitingForRelease = false;
+        onDown: _ => pressed.Value = true,
+        onUp: _ => pressed.Value = false,
+        onLeave: _ => pressed.Value = false
+    )
 }
 ```
 ```csharp
 class HoldToConfirm : ReactiveComponent {
-    private const float HoldTime = 1.2f;
-    private const float Width = 44f;
-
-    private State<bool> _pressed = null!;
-    private State<float> _progress = null!;
-    private State<int> _confirmed = null!;
-    private bool _waitingForRelease;
-
     protected override GameObject Construct() {
-        _pressed = Remember(false);
-        _progress = Remember(0f);
-        _confirmed = Remember(0);
+        var pressed = Remember(false);
+        var confirmed = Remember(0);
+        var progress = RememberAnimated(0f, 1200.ms);
+
+        pressed.AddCallback(x => {
+            progress.Timing = x ? 1200.ms : (progress.Value * 1200 / 3f).ms;
+            progress.TargetValue = x ? 1f : 0f;
+        });
+
+        // Drop the press once full, so the bar drains even if still held
+        progress.OnFinish = x => {
+            if (x >= 1f) {
+                confirmed.Value++;
+                pressed.Value = false;
+            }
+        };
 
         return new Layout {
             FlexController = {
@@ -346,7 +345,7 @@ class HoldToConfirm : ReactiveComponent {
                     },
 
                     FlexItem = {
-                        Size = new() { x = Width.pt, y = 9.pt }
+                        Size = new() { x = 44.pt, y = 9.pt }
                     },
 
                     Sprite = BeatSaberResources.Sprites.background,
@@ -354,9 +353,9 @@ class HoldToConfirm : ReactiveComponent {
                     Color = Color.white with { a = 0.1f },
 
                     Do = x => x.WithPointerEvents(
-                        onDown: _ => _pressed.Value = true,
-                        onUp: _ => Release(),
-                        onLeave: _ => Release()
+                        onDown: _ => pressed.Value = true,
+                        onUp: _ => pressed.Value = false,
+                        onLeave: _ => pressed.Value = false
                     ),
 
                     Children = {
@@ -368,8 +367,8 @@ class HoldToConfirm : ReactiveComponent {
                                     top = 0.pt,
                                     bottom = 0.pt
                                 },
-                                sSize = _progress.Map(x => new YogaVector(
-                                    (x * Width).pt,
+                                sSize = progress.Map(x => new YogaVector(
+                                    (x * 100).pct,
                                     YogaValue.Auto
                                 ))
                             },
@@ -381,7 +380,7 @@ class HoldToConfirm : ReactiveComponent {
 
                         new Label {
                             FontSize = 3.5f,
-                            sText = _pressed.Map(x => x
+                            sText = pressed.Map(x => x
                                 ? "Keep holding..."
                                 : "Hold to delete"
                             )
@@ -392,7 +391,7 @@ class HoldToConfirm : ReactiveComponent {
                 new Label {
                     FontSize = 3.2f,
                     Color = Color.white with { a = 0.6f },
-                    sText = _confirmed.Map(x => x == 0
+                    sText = confirmed.Map(x => x == 0
                         ? "Nothing deleted yet"
                         : $"Deleted {x} time{(x == 1 ? "" : "s")}"
                     )
@@ -400,58 +399,196 @@ class HoldToConfirm : ReactiveComponent {
             }
         }.Use();
     }
+}
+```
+</Playground>
 
-    protected override void OnUpdate() {
-        var holding = _pressed.Value && !_waitingForRelease;
+Let go early and the bar drains three times faster than it filled. The drain time is set from how full the bar is, so
+it keeps that speed from wherever you let go, while a fixed time would make an almost empty bar crawl back as slowly as
+a full one. If you hold to the end instead, the button confirms and drops the press, so the bar drains even while you
+keep holding, and deleting again takes a new press.
 
-        // Filling takes the hold time, draining is three times faster
-        var step = Time.deltaTime / HoldTime * (holding ? 1f : -3f);
-        _progress.Value = Mathf.Clamp01(_progress.Value + step);
+## Dragging
 
-        if (holding && _progress.Value >= 1f) {
-            _confirmed.Value++;
-            _waitingForRelease = true;
+Hover and move events reach an object only while the pointer is over it or one of its children, but drag events don't
+depend on that. Once a press moves past the drag threshold, the input module sends drag events to the pressed object
+whenever the pointer moves, until the button is released, even while the pointer is over other graphics. So following
+the pointer only takes turning each event into a position in the pressed object's own space, which
+`InverseTransformPoint` does with the point the pointer's raycast hit.
+
+The pad below makes that position the end of a glide, so press anywhere on it and drag past its edges:
+
+<Playground>
+```csharp excerpt
+var from = Remember(Vector2.zero);
+var to = Remember(Vector2.zero);
+var progress = RememberAnimated(
+    0f,
+    200.ms,
+    AnimationCurve.EaseOutCubic
+);
+
+// The knob's offset from the center of the pad
+var offset = RememberDerived(
+    from,
+    to,
+    progress,
+    predicate: (a, b, t) => Vector2.Lerp(a, b, t)
+);
+
+// Starts a glide from wherever the knob is now
+void GlideTo(Vector2 point) {
+    from.Value = offset.Value;
+    to.Value = point;
+    progress.SetValueImmediate(0f);
+    progress.TargetValue = 1f;
+}
+
+new Background {
+    // Drag events keep coming after the pointer leaves the pad
+    Do = x => x.WithPointerEvents(
+        onDown: h => GlideTo(ToOffset(h)),
+        onDrag: h => to.Value = ToOffset(h),
+        onUp: _ => GlideTo(Vector2.zero)
+    )
+}
+
+// The pointer's offset from the pad's center, clamped to the pad
+private static Vector2 ToOffset(PointerEventsHandler handler) {
+    var rect = ((RectTransform)handler.transform).rect;
+    var world = handler.EventData!.pointerCurrentRaycast.worldPosition;
+
+    Vector2 local = handler.transform.InverseTransformPoint(world);
+    local -= rect.center;
+
+    var maxX = (rect.width - KnobSize) / 2f;
+    var maxY = (rect.height - KnobSize) / 2f;
+
+    return new Vector2(
+        Mathf.Clamp(local.x, -maxX, maxX),
+        Mathf.Clamp(local.y, -maxY, maxY)
+    );
+}
+```
+```csharp
+class DragKnob : ReactiveComponent {
+    private const float KnobSize = 6f;
+
+    protected override GameObject Construct() {
+        var from = Remember(Vector2.zero);
+        var to = Remember(Vector2.zero);
+        var progress = RememberAnimated(
+            0f,
+            200.ms,
+            AnimationCurve.EaseOutCubic
+        );
+
+        // The knob's offset from the center of the pad
+        var offset = RememberDerived(
+            from,
+            to,
+            progress,
+            predicate: (a, b, t) => Vector2.Lerp(a, b, t)
+        );
+
+        // Starts a glide from wherever the knob is now
+        void GlideTo(Vector2 point) {
+            from.Value = offset.Value;
+            to.Value = point;
+            progress.SetValueImmediate(0f);
+            progress.TargetValue = 1f;
         }
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 3.pt
+            },
+
+            Children = {
+                new Background {
+                    FlexController = {
+                        JustifyContent = Justify.Center,
+                        AlignItems = Align.Center
+                    },
+
+                    FlexItem = {
+                        Size = new() { x = 40.pct, y = 50.pct }
+                    },
+
+                    Sprite = BeatSaberResources.Sprites.background,
+                    PixelsPerUnit = 10f,
+                    Color = Color.white with { a = 0.1f },
+
+                    // Drag events keep coming after the pointer leaves the pad
+                    Do = x => x.WithPointerEvents(
+                        onDown: h => GlideTo(ToOffset(h)),
+                        onDrag: h => to.Value = ToOffset(h),
+                        onUp: _ => GlideTo(Vector2.zero)
+                    ),
+
+                    Children = {
+                        new Image {
+                            // Unity's y goes up, the layout's top goes down
+                            FlexItem = {
+                                Size = KnobSize.pt,
+                                sPosition = offset.Map(x => new YogaFrame {
+                                    left = x.x.pt,
+                                    top = (-x.y).pt
+                                })
+                            },
+
+                            Sprite = GameResources.CircleIcon,
+                            PreserveAspect = true,
+                            Color = new Color(0f, 0.75f, 1f)
+                        }
+                    }
+                },
+
+                new Label {
+                    FontSize = 3.2f,
+                    Color = Color.white with { a = 0.6f },
+                    sText = offset.Map(x => $"offset {x.x:0}, {x.y:0}")
+                }
+            }
+        }.Use();
     }
 
-    private void Release() {
-        _pressed.Value = false;
-        _waitingForRelease = false;
+    // The pointer's offset from the pad's center, clamped to the pad
+    private static Vector2 ToOffset(PointerEventsHandler handler) {
+        var rect = ((RectTransform)handler.transform).rect;
+        var world = handler.EventData!.pointerCurrentRaycast.worldPosition;
+
+        Vector2 local = handler.transform.InverseTransformPoint(world);
+        local -= rect.center;
+
+        var maxX = (rect.width - KnobSize) / 2f;
+        var maxY = (rect.height - KnobSize) / 2f;
+
+        return new Vector2(
+            Mathf.Clamp(local.x, -maxX, maxX),
+            Mathf.Clamp(local.y, -maxY, maxY)
+        );
     }
 }
 ```
 </Playground>
 
-For dragging there is one trick. Pointer events on a graphic stop the moment the pointer is over some other graphic.
-A knob dragged off its pad would freeze at the edge. But the `PointerEventData` you were handed on press is the same
-object the input module keeps updating every frame, wherever the pointer goes. Keep it, and read the position from it
-in `OnUpdate`.
+The knob glides to where you press and sticks to the pointer once it gets there. Past the pad's edges it slides along
+them instead of freezing, since the drag events keep coming. That works because the knob's position is a blend from
+where it was to where the pointer is, and only the blend is animated. A drag moves the end of the blend without
+restarting it, so the glide always takes the same time, and letting go is the same glide toward the center. The end
+itself is clamped to the pad's rect as it is at that moment, so the pad can take any size, and here it stretches with
+the window.
 
-```csharp
-private PointerEventData? _press;
-
-Do = x => x.WithPointerEvents(
-    onDown: h => _press = h.EventData,
-    onUp: _ => _press = null
-)
-
-protected override void OnUpdate() {
-    if (_press is { } data) {
-        _position.Value = ToLocal(data.position);
-    }
-}
-```
-
-Bind `sPosition` on an absolutely positioned item to `_position` and it follows the pointer anywhere on the canvas.
-Make `_position` an animated state, set it immediately while dragging, and set its target on release, and it springs
-back on its own. A ghost that sits under the pointer needs `RaycastTarget = false`, or nothing beneath it is ever
-hovered.
-
-Drag and drop between containers rarely needs reparenting. Give each item a state saying which container it is in,
-show it in every container with `sEnabled` bound to that state, and dropping becomes one assignment.
 ## Scrolling
 
-`onScroll` gets the wheel delta in `EventData.scrollDelta`. The magnitude varies between mice, so step by its sign.
+Scrolling arrives like the other events, through `onScroll`, with the wheel's movement in the event data's
+`scrollDelta`. Its y is positive when the wheel turns up and negative when it turns down, while its size depends on the
+mouse and the system settings, so the same notch can arrive as a whole step or a fraction of one. That makes the sign
+the only part worth trusting, and this number steps by one for each scroll in either direction:
 
 <Playground>
 ```csharp excerpt
@@ -558,8 +695,13 @@ class ScrollAdjust : ReactiveComponent {
 }
 ```
 </Playground>
-In VR there is no wheel. The joystick only scrolls inside scroll areas, which attach an adapter for it, and a plain
-graphic only hears the mouse. For content that should scroll in the game, use a `ScrollArea`, or a `Table` for long
-lists. Both are driven by a `ScrollContext`, a state that carries the scroll position, the content size and the view
-size, with `ScrollTo`, `PageDown` and the rest on it. See [Repeaters and Tables](/docs/reactive/lists/lists#tables-and-scrolling)
+
+Each notch moves the number by one, however far the mouse says it scrolled, and the number stops at both ends. Content
+that only needs to scroll doesn't need any of this, since a `ScrollArea`, or a `Table` for long lists, handles it for
+you. See [Repeaters and Tables](/docs/reactive/lists/lists#tables-and-scrolling)
 and [Scroll Areas and Scrollbars](/docs/sdk/scroll-area).
+
+<Alert>
+    In VR there's no mouse wheel, so on its own `onScroll` only works in FPFC. To scroll with the joystick as well, add
+    a `VRScrollAdapter` component to the graphic, the same one scroll areas and tables use.
+</Alert>

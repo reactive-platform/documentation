@@ -103,9 +103,11 @@ export function fileExtension(platform: PlatformName) {
     return platform === 'quest' ? 'cpp' : 'cs';
 }
 
-/** A name for a file that has none: after the first type it declares, or a plain default. */
+/** A name for a file that has none: after its first class, its first other type, or a plain default. */
 export function defaultFileName(code: string, platform: PlatformName) {
-    const type = /\b(?:class|struct|record|interface|enum)\s+([A-Za-z_]\w*)/.exec(code);
+    const type =
+        /(?<!\brecord\s+)\bclass\s+([A-Za-z_]\w*)/.exec(code) ??
+        /\b(?:record(?:\s+(?:class|struct))?|struct|interface|enum)\s+([A-Za-z_]\w*)/.exec(code);
     if (type) return `${type[1]}.${fileExtension(platform)}`;
     return platform === 'quest' ? 'main.cpp' : 'Program.cs';
 }

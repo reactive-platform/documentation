@@ -56,6 +56,9 @@ function fileName(fence: any, index: number) {
     if (title) return title[1];
 
     const extension = /^(cpp|c\+\+|cxx)$/i.test(fence.lang ?? '') ? 'cpp' : 'cs';
-    const type = /\b(?:class|struct|record|interface|enum)\s+([A-Za-z_]\w*)/.exec(fence.value);
+    // Named after the first class, since a record or struct above it is usually a helper
+    const type =
+        /(?<!\brecord\s+)\bclass\s+([A-Za-z_]\w*)/.exec(fence.value) ??
+        /\b(?:record(?:\s+(?:class|struct))?|struct|interface|enum)\s+([A-Za-z_]\w*)/.exec(fence.value);
     return `${type ? type[1] : index === 0 ? 'Program' : `File${index + 1}`}.${extension}`;
 }

@@ -43,6 +43,7 @@ in-browser Playground. The docs cover Reactive 2.0.0.
 - The manifest example uses `"Reactive": "^2.0.0"`, while `Reactive.Compiler` stays at `1.0.0`.
 - Compare with BSML through fundamentals such as structure, layout and state, not small tasks like showing and hiding.
 - Show BSML and Reactive code with `<Compare>`: one block with a switch, not side by side.
+- Number the calls in Mermaid sequence diagrams with `autonumber`.
 
 ## Code examples
 

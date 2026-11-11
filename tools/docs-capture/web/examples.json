@@ -1,0 +1,247 @@
+{
+  "counter": {"page": "/docs/reactive/state/states", "index": 0, "asset": "state/counter.webp", "steps": [
+    ["wait", 700], ["click", "BsTextButton", 0], ["wait", 550], ["click", "BsTextButton", 0], ["wait", 550],
+    ["click", "BsTextButton", 0], ["wait", 500], ["leave"], ["wait", 1200]] },
+  "callbacks": {"page": "/docs/reactive/state/states", "index": 1, "asset": "state/callbacks.webp", "steps": [
+    ["wait", 700], ["click", "BsTextButton", 0], ["wait", 700], ["click", "BsTextButton", 0], ["wait", 700],
+    ["click", "BsTextButton", 0], ["leave"], ["wait", 1300]] },
+  "batching": {"page": "/docs/reactive/state/states", "index": 2, "asset": "state/batching.webp", "steps": [
+    ["wait", 700], ["click", "BsTextButton", 0], ["wait", 1100], ["click", "BsTextButton", 0], ["leave"],
+    ["wait", 1400]] },
+  "levels": {"page": "/docs/reactive/state/bindings", "index": 0, "asset": "state/levels.webp", "steps": [
+    ["wait", 700], ["click", "IncButton", 0], ["wait", 450], ["click", "IncButton", 0], ["wait", 450],
+    ["click", "IncButton", 0], ["wait", 450], ["click", "IncButton", 0], ["wait", 450], ["click", "IncButton", 0],
+    ["wait", 1300], ["click", "DecButton", 0], ["wait", 450], ["click", "DecButton", 0], ["leave"], ["wait", 1200]] },
+  "two-way": {"page": "/docs/reactive/state/bindings", "index": 1, "asset": "state/two-way.webp", "steps": [
+    ["wait", 700], ["click", "BsToggle", 0], ["wait", 1000], ["click", "BsTextButton", 0], ["wait", 1000],
+    ["click", "BsTextButton", 0], ["wait", 1000], ["click", "BsToggle", 0], ["leave"], ["wait", 1200]] },
+  "nested": {"page": "/docs/reactive/state/bindings", "index": 2, "asset": "state/nested.webp", "steps": [
+    ["wait", 700], ["drag", "SlidingArea", 0, 0.3, 0.5, 0.95, 0.5, 1200], ["wait", 500],
+    ["drag", "SlidingArea", 0, 0.95, 0.5, 0.05, 0.5, 1400], ["wait", 500],
+    ["drag", "SlidingArea", 0, 0.05, 0.5, 0.3, 0.5, 700], ["leave"], ["wait", 900]] },
+  "meters": {"page": "/docs/reactive/state/bindings", "index": 3, "asset": "state/meters.webp", "steps": [
+    ["wait", 700], ["drag", "SlidingArea", 0, 0.6, 0.5, 0.1, 0.5, 1200], ["wait", 500],
+    ["drag", "SlidingArea", 0, 0.1, 0.5, 0.95, 0.5, 1400], ["wait", 500],
+    ["drag", "SlidingArea", 0, 0.95, 0.5, 0.6, 0.5, 700], ["leave"], ["wait", 900]] },
+  "queries": {"page": "/docs/reactive/state/queries", "index": 0, "asset": "state/queries.webp", "steps": [
+    ["wait", 700], ["click", "IncButton", 0], ["wait", 650], ["click", "IncButton", 0], ["wait", 650],
+    ["click", "IncButton", 0], ["wait", 650], ["click", "DecButton", 0], ["wait", 650], ["click", "DecButton", 0],
+    ["wait", 650], ["click", "DecButton", 0], ["leave"], ["wait", 1000]] },
+  "derived": {"page": "/docs/reactive/state/queries", "index": 1, "asset": "state/derived.webp", "steps": [
+    ["wait", 700], ["click", "IncButton", 0], ["wait", 650], ["click", "IncButton", 0], ["wait", 900],
+    ["click", "IncButton", 1], ["wait", 650], ["click", "IncButton", 1], ["wait", 900], ["click", "DecButton", 0],
+    ["wait", 650], ["click", "DecButton", 1], ["leave"], ["wait", 1000]] },
+  "reuse": {"page": "/docs/reactive/lists/lists", "index": 1, "asset": "lists/reuse.webp", "steps": [
+    ["wait", 900], ["click", "BsTextButton", 0], ["wait", 1500], ["click", "BsTextButton", 0], ["leave"],
+    ["wait", 1500]] },
+  "pool-popups": {"page": "/docs/reactive/lists/pooling", "index": 0, "asset": "lists/pool-popups.webp", "steps": [
+    ["wait", 700], ["click", "Image", 0, 0.5, 0.5], ["wait", 300], ["click", "Image", 0, 0.3, 0.35], ["wait", 300],
+    ["click", "Image", 0, 0.7, 0.6], ["wait", 250], ["click", "Image", 0, 0.45, 0.75], ["wait", 250],
+    ["click", "Image", 0, 0.65, 0.3], ["wait", 900], ["click", "Image", 0, 0.5, 0.5], ["wait", 250],
+    ["click", "Image", 0, 0.35, 0.6], ["leave"], ["wait", 1800]] },
+  "pool-pixels": {"page": "/docs/reactive/lists/pooling", "index": 1, "asset": "lists/pool-pixels.webp", "steps": [
+    ["wait", 700], ["drag", "Background", 0, 0.1, 0.3, 0.9, 0.35, 1300], ["wait", 200],
+    ["drag", "Background", 0, 0.2, 0.75, 0.75, 0.6, 1000], ["wait", 1000], ["click", "BsTextButton", 0],
+    ["wait", 900], ["drag", "Background", 0, 0.15, 0.55, 0.85, 0.5, 1100], ["leave"], ["wait", 1200]] },
+  "pool-toasts": {"page": "/docs/reactive/lists/pooling", "index": 2, "asset": "lists/pool-toasts.webp", "steps": [
+    ["wait", 700], ["click", "BsPrimaryTextButton", 0], ["wait", 450], ["click", "BsPrimaryTextButton", 0],
+    ["wait", 450], ["click", "BsPrimaryTextButton", 0], ["wait", 450], ["click", "BsPrimaryTextButton", 0],
+    ["leave"], ["wait", 4000]] },
+  "pointer-events": {"page": "/docs/reactive/input", "index": 0, "asset": "input/pointer-events.webp", "steps": [
+    ["wait", 700], ["hover", "Background", 0], ["wait", 900], ["press", "Background", 0], ["wait", 900],
+    ["drag", "Background", 0, 0.5, 0.5, 0.8, 0.4, 800], ["wait", 600], ["scroll", "Background", 0, -120],
+    ["wait", 200], ["scroll", "Background", 0, -120], ["wait", 700], ["leave"], ["wait", 1000]] },
+  "own-button": {"page": "/docs/reactive/input", "index": 1, "asset": "input/own-button.webp", "steps": [
+    ["wait", 700], ["hover", "Background", 0], ["wait", 800], ["press", "Background", 0], ["wait", 500],
+    ["press", "Background", 0], ["wait", 600], ["leave"], ["wait", 600], ["press", "BsToggle", 0], ["wait", 700],
+    ["hover", "Background", 0], ["wait", 800], ["press", "Background", 0], ["wait", 600], ["leave"], ["wait", 400],
+    ["press", "BsToggle", 0], ["leave"], ["wait", 1000]] },
+  "hold": {"page": "/docs/reactive/input", "index": 2, "asset": "input/hold.webp", "steps": [
+    ["wait", 700], ["down", "Background", 0], ["wait", 700], ["up"], ["wait", 900], ["down", "Background", 0],
+    ["wait", 2200], ["up"], ["leave"], ["wait", 1500]] },
+  "drag": {"page": "/docs/reactive/input", "index": 3, "asset": "input/drag.webp", "steps": [
+    ["wait", 700], ["drag", "Image", 0, 0.5, 0.5, 3.0, -0.6, 900], ["wait", 900],
+    ["drag", "Image", 0, 0.5, 0.5, -2.5, 1.2, 900], ["leave"], ["wait", 1300]] },
+  "scroll": {"page": "/docs/reactive/input", "index": 4, "asset": "input/scroll.webp", "steps": [
+    ["wait", 700], ["scroll", "text:scroll here", 0, -120], ["wait", 350], ["scroll", "text:scroll here", 0, -120],
+    ["wait", 350], ["scroll", "text:scroll here", 0, -120], ["wait", 800], ["scroll", "text:scroll here", 0, 120],
+    ["wait", 350], ["scroll", "text:scroll here", 0, 120], ["wait", 350], ["scroll", "text:scroll here", 0, 120],
+    ["wait", 350], ["scroll", "text:scroll here", 0, 120], ["leave"], ["wait", 1000]] },
+  "player": {"page": "/docs/reactive/animation/players", "index": 0, "asset": "animation/player.webp", "steps": [
+    ["wait", 1800], ["click", "BsTextButton", 0], ["wait", 1000], ["click", "BsTextButton", 0], ["wait", 1200],
+    ["click", "BsTextButton", 1], ["wait", 1200], ["click", "BsTextButton", 2], ["leave"], ["wait", 1500]] },
+  "tracks": {"page": "/docs/reactive/animation/players", "index": 1, "asset": "animation/tracks.webp", "steps": [
+    ["wait", 700], ["click", "BsTextButton", 0], ["wait", 1400], ["click", "BsTextButton", 1], ["wait", 1400],
+    ["click", "BsTextButton", 2], ["leave"], ["wait", 1600]] },
+  "repeating": {"page": "/docs/reactive/animation/players", "index": 2, "asset": "animation/repeating.webp", "steps": [
+    ["wait", 700], ["click", "BsTextButton", 0], ["wait", 1800], ["click", "BsTextButton", 1], ["wait", 3600],
+    ["click", "BsTextButton", 3], ["wait", 2600], ["click", "BsTextButton", 4], ["leave"], ["wait", 1200]] },
+  "direction": {"page": "/docs/reactive/animation/players", "index": 3, "asset": "animation/direction.webp", "steps": [
+    ["wait", 700], ["click", "BsTextButton", 0], ["wait", 4000], ["click", "BsTextButton", 1], ["wait", 3000],
+    ["click", "BsTextButton", 2], ["leave"], ["wait", 1000]] },
+  "drop": {"page": "/docs/reactive/animation/animated-states", "index": 3, "asset": "animation/drop.webp", "steps": [
+    ["wait", 700], ["click", "BsTextButton", 0], ["wait", 2200], ["click", "BsTextButton", 0], ["leave"],
+    ["wait", 2200]] },
+  "flex-sandbox": {"page": "/docs/reactive/layout/yoga", "index": 0, "asset": "layout/flex-sandbox.webp", "steps": [
+    ["wait", 800], ["click", "text:Column", 0], ["wait", 1000], ["click", "text:Center", 0], ["wait", 1000],
+    ["click", "text:Center", 1], ["wait", 1000], ["click", "text:Row", 0], ["wait", 1000],
+    ["click", "text:Between", 0], ["wait", 1000], ["click", "IncButton", 0], ["wait", 350],
+    ["click", "IncButton", 0], ["wait", 1000], ["click", "text:Start", 0], ["wait", 400], ["click", "text:Start", 1],
+    ["wait", 400], ["click", "DecButton", 0], ["wait", 350], ["click", "DecButton", 0], ["leave"], ["wait", 1200]] },
+  "units": {"page": "/docs/reactive/layout/yoga", "index": 1, "asset": "layout/units.webp", "steps": [
+    ["wait", 700], ["drag", "SlidingArea", 0, 0.3, 0.5, 0.9, 0.5, 1300], ["wait", 600],
+    ["drag", "SlidingArea", 0, 0.9, 0.5, 0.1, 0.5, 1500], ["wait", 600],
+    ["drag", "SlidingArea", 0, 0.1, 0.5, 0.3, 0.5, 700], ["leave"], ["wait", 900]] },
+  "growing": {"page": "/docs/reactive/layout/yoga", "index": 2, "asset": "layout/growing.webp", "steps": [
+    ["wait", 700], ["click", "IncButton", 0], ["wait", 800], ["click", "IncButton", 0], ["wait", 1000],
+    ["click", "IncButton", 1], ["wait", 1000], ["click", "DecButton", 0], ["wait", 800], ["click", "DecButton", 0],
+    ["wait", 800], ["click", "DecButton", 1], ["wait", 800], ["click", "DecButton", 1], ["wait", 800],
+    ["click", "IncButton", 1], ["leave"], ["wait", 1200]] },
+  "absolute": {"page": "/docs/reactive/layout/yoga", "index": 3, "asset": "layout/absolute.webp", "steps": [
+    ["wait", 700], ["click", "text:Top right", 0], ["wait", 1000], ["click", "text:Bottom right", 0], ["wait", 1000],
+    ["click", "text:Bottom left", 0], ["wait", 1000], ["click", "text:Top left", 0], ["leave"], ["wait", 1200]] },
+  "constraints": {"page": "/docs/reactive/layout/yoga", "index": 4, "asset": "layout/constraints.webp", "steps": [
+    ["wait", 700], ["click", "BsToggle", 0], ["wait", 1200], ["click", "BsToggle", 1], ["wait", 1200],
+    ["click", "BsToggle", 0], ["wait", 1200], ["click", "BsToggle", 1], ["leave"], ["wait", 1200]] },
+  "card-offset": {"page": "/docs/reactive/layout/custom", "index": 3, "asset": "layout/card-offset.webp", "steps": [
+    ["wait", 700], ["drag", "SlidingArea", 0, 0.5, 0.5, 0.95, 0.5, 1300], ["wait", 600],
+    ["drag", "SlidingArea", 0, 0.95, 0.5, 0.05, 0.5, 1600], ["wait", 600],
+    ["drag", "SlidingArea", 0, 0.05, 0.5, 0.5, 0.5, 800], ["leave"], ["wait", 900]] },
+  "ignore-layout": {"page": "/docs/reactive/layout/system", "index": 1, "asset": "layout/ignore-layout.webp", "steps": [
+    ["wait", 800], ["click", "BsToggle", 0], ["wait", 1400], ["click", "BsToggle", 0], ["wait", 1400],
+    ["click", "BsToggle", 0], ["leave"], ["wait", 1400]] },
+  "flex-wrap": {"page": "/docs/reactive", "index": 2, "asset": "layout/flex-wrap.webp", "steps": [
+    ["wait", 800], ["drag", "SlidingArea", 0, 0.98, 0.5, 0.02, 0.5, 2600], ["wait", 800],
+    ["drag", "SlidingArea", 0, 0.02, 0.5, 0.45, 0.5, 1200], ["wait", 800],
+    ["drag", "SlidingArea", 0, 0.45, 0.5, 0.98, 0.5, 1400], ["leave"], ["wait", 900]] },
+  "showcase": {"page": "/docs/reactive", "index": 3, "asset": "animation/showcase.webp", "loop": 64, "steps": [
+    ["wait", 7000]] },
+  "performance": {"page": "/docs/reactive", "index": 4, "asset": "intro/performance.webp", "steps": [
+    ["wait", 900], ["click", "BsTextButton", 2], ["wait", 1700], ["click", "BsTextButton", 3], ["wait", 1500],
+    ["click", "BsTextButton", 1], ["wait", 1700], ["click", "BsTextButton", 0], ["wait", 1700]] },
+  "reactivity": {"page": "/docs/reactive", "index": 1, "asset": "intro/reactivity.webp", "steps": [
+    ["wait", 800], ["drag", "SlidingArea", 0, 0.3, 0.5, 0.97, 0.5, 1800], ["wait", 700],
+    ["drag", "SlidingArea", 0, 0.97, 0.5, -0.05, 0.5, 1600], ["wait", 700],
+    ["drag", "SlidingArea", 0, 0.0, 0.5, 0.29, 0.5, 900], ["leave"], ["wait", 900]] },
+  "intro-counter": {"page": "/docs/reactive", "index": 0, "asset": "intro/counter.webp", "steps": [
+    ["wait", 800], ["click", "BsPrimaryTextButton", 0], ["wait", 600], ["click", "BsPrimaryTextButton", 0],
+    ["wait", 600], ["click", "BsPrimaryTextButton", 0], ["wait", 500], ["leave"], ["wait", 1200]] },
+  "quick-start": {"page": "/docs/reactive/getting-started", "index": 0, "asset": "intro/quick-start.webp", "steps": [
+    ["wait", 800], ["click", "BsPrimaryTextButton", 0], ["wait", 600], ["click", "BsPrimaryTextButton", 0],
+    ["wait", 600], ["click", "BsPrimaryTextButton", 0], ["wait", 500], ["leave"], ["wait", 1200]] },
+  "settings": {"page": "/docs/reactive/coming-from-bsml", "index": 0, "asset": "intro/coming-from-bsml.webp", "steps": [
+    ["wait", 600], ["click", "BsToggle", 0], ["wait", 800], ["drag", "SlidingArea", 0, 0.7, 0.5, 0.5, 0.5, 700],
+    ["wait", 500], ["drag", "SlidingArea", 0, 0.5, 0.5, 0.3, 0.5, 700], ["wait", 800], ["click", "BsToggle", 0],
+    ["wait", 1000]] },
+  "visibility": {"page": "/docs/reactive/layout/system", "index": 0, "asset": "layout/visibility.webp", "steps": [
+    ["wait", 600], ["click", "BsToggle", 0], ["wait", 1300], ["click", "BsToggle", 0], ["wait", 1300],
+    ["click", "BsToggle", 0], ["wait", 1300], ["click", "BsToggle", 0], ["wait", 800]] },
+  "animated-state": {"page": "/docs/reactive/animation/animated-states", "index": 0, "asset": "animation/animated-state.webp", "steps": [
+    ["wait", 600], ["hover", "Background", 0], ["wait", 1500], ["leave"], ["wait", 1500], ["hover", "Background", 0],
+    ["wait", 1500], ["leave"], ["wait", 900]] },
+  "timing": {"page": "/docs/reactive/animation/animated-states", "index": 1, "asset": "animation/timing.webp", "steps": [
+    ["wait", 500], ["drag", "SlidingArea", 0, 0.02, 0.5, 0.98, 0.5, 500], ["wait", 2000],
+    ["drag", "SlidingArea", 0, 0.98, 0.5, 0.02, 0.5, 500], ["wait", 2000]] },
+  "curves": {"page": "/docs/reactive/animation/animated-states", "index": 2, "asset": "animation/curves.webp", "steps": [
+    ["wait", 400], ["click", "BsTextButton", 0], ["wait", 2300], ["click", "BsTextButton", 0], ["wait", 2300]] },
+  "interpolators": {"page": "/docs/reactive/animation/animated-states", "index": 4, "asset": "animation/interpolators.webp", "steps": [
+    ["wait", 400], ["click", "BsTextButton", 0], ["wait", 1800], ["click", "BsTextButton", 0], ["wait", 1800]] },
+  "repeater": {"page": "/docs/reactive/lists/lists", "index": 0, "asset": "lists/repeater.webp", "steps": [
+    ["wait", 600], ["click", "BsTextButton", 0], ["wait", 800], ["click", "BsTextButton", 0], ["wait", 800],
+    ["click", "BsTextButton", 1], ["wait", 650], ["click", "BsTextButton", 1], ["wait", 650],
+    ["click", "BsTextButton", 1], ["wait", 900]] },
+  "table": {"page": "/docs/reactive/lists/lists", "index": 2, "asset": "lists/table.webp", "steps": [
+    ["wait", 600], ["scroll", "Table`2", 0, -120], ["wait", 150], ["scroll", "Table`2", 0, -120], ["wait", 150],
+    ["scroll", "Table`2", 0, -120], ["wait", 150], ["scroll", "Table`2", 0, -120], ["wait", 150],
+    ["scroll", "Table`2", 0, -120], ["wait", 150], ["scroll", "Table`2", 0, -120], ["wait", 150],
+    ["scroll", "Table`2", 0, -120], ["wait", 150], ["scroll", "Table`2", 0, -120], ["wait", 150], ["wait", 600],
+    ["click", "Background", 3], ["wait", 800], ["scroll", "Table`2", 0, 120], ["wait", 150],
+    ["scroll", "Table`2", 0, 120], ["wait", 150], ["scroll", "Table`2", 0, 120], ["wait", 150],
+    ["scroll", "Table`2", 0, 120], ["wait", 150], ["scroll", "Table`2", 0, 120], ["wait", 150],
+    ["scroll", "Table`2", 0, 120], ["wait", 150], ["scroll", "Table`2", 0, 120], ["wait", 150],
+    ["scroll", "Table`2", 0, 120], ["wait", 150], ["leave"], ["wait", 900]] },
+  "selection": {"page": "/docs/reactive/lists/lists", "index": 3, "asset": "lists/selection.webp", "steps": [
+    ["wait", 600], ["click", "Background", 1], ["wait", 650], ["click", "Background", 4], ["wait", 650],
+    ["click", "Background", 2], ["wait", 650], ["click", "Background", 3], ["wait", 900]] },
+  "buttons": {"page": "/docs/sdk/buttons", "index": 0, "asset": "sdk/buttons.webp", "steps": [
+    ["hover", "BsTextButton", 0], ["wait", 500], ["hover", "BsTextButton", 1], ["wait", 500],
+    ["hover", "BsTextButton", 2], ["wait", 500], ["hover", "BsTextButton", 3], ["wait", 500],
+    ["hover", "BsImageButton", 0], ["wait", 500], ["leave"], ["wait", 600]] },
+  "button-content": {"page": "/docs/sdk/buttons", "index": 1, "asset": "sdk/button-content.webp", "steps": [
+    ["wait", 600], ["click", "BsButton", 0], ["wait", 700], ["click", "BsButton", 0], ["wait", 700],
+    ["click", "BsButton", 0], ["wait", 900]] },
+  "primary-buttons": {"page": "/docs/sdk/primary-buttons", "index": 0, "asset": "sdk/primary-buttons.webp", "steps": [
+    ["hover", "BsPrimaryTextButton", 0], ["wait", 500], ["hover", "BsPrimaryTextButton", 1], ["wait", 500],
+    ["hover", "BsPrimaryTextButton", 2], ["wait", 500], ["hover", "BsPrimaryImageButton", 0], ["wait", 500],
+    ["leave"], ["wait", 600]] },
+  "primary-loading": {"page": "/docs/sdk/primary-buttons", "index": 1, "asset": "sdk/primary-loading.webp", "steps": [
+    ["wait", 500], ["click", "BsPrimaryButton", 0], ["wait", 3200]] },
+  "aero-buttons": {"page": "/docs/sdk/aero-buttons", "index": 0, "asset": "sdk/aero-buttons.webp", "steps": [
+    ["wait", 300], ["hover", "BsAeroButton", 0], ["wait", 500], ["hover", "BsAeroButton", 1], ["wait", 500],
+    ["hover", "BsAeroButton", 2], ["wait", 500], ["leave"], ["wait", 600]] },
+  "toggle": {"page": "/docs/sdk/toggle", "index": 0, "asset": "sdk/toggle.webp", "steps": [
+    ["wait", 500], ["click", "BsToggle", 0], ["wait", 750], ["click", "BsToggle", 1], ["wait", 750],
+    ["click", "BsToggle", 2], ["wait", 750], ["click", "BsToggle", 0], ["wait", 700]] },
+  "slider": {"page": "/docs/sdk/slider", "index": 0, "asset": "sdk/slider.webp", "steps": [
+    ["wait", 500], ["drag", "SlidingArea", 0, 0.5, 0.5, 0.9, 0.5, 600], ["wait", 400],
+    ["drag", "SlidingArea", 1, 0.3, 0.5, 0.8, 0.5, 600], ["wait", 400],
+    ["drag", "SlidingArea", 2, 0.25, 0.5, 0.75, 0.5, 600], ["wait", 400],
+    ["drag", "SlidingArea", 3, 0.6, 0.5, 0.2, 0.5, 600], ["wait", 800]] },
+  "segmented-control": {"page": "/docs/sdk/segmented-control", "index": 0, "asset": "sdk/segmented-control.webp", "steps": [
+    ["wait", 500], ["click", "Background", 1], ["wait", 750], ["click", "Background", 2], ["wait", 750],
+    ["click", "Background", 4], ["wait", 750], ["click", "Background", 5], ["wait", 750], ["click", "Background", 0],
+    ["wait", 100], ["click", "Background", 3], ["wait", 750]] },
+  "keyed-container": {"page": "/docs/sdk/segmented-control", "index": 1, "asset": "sdk/keyed-container.webp", "steps": [
+    ["wait", 500], ["click", "text:Slider", 0], ["wait", 1100], ["click", "text:Buttons", 0], ["wait", 1100],
+    ["click", "text:Toggle", 0], ["wait", 900]] },
+  "dropdown": {"page": "/docs/sdk/dropdown", "index": 0, "asset": "sdk/dropdown.webp", "steps": [
+    ["wait", 500], ["click", "BsDropdown`1", 1], ["wait", 1500], ["click", "text:Item 3", 0], ["wait", 1300]] },
+  "list-control": {"page": "/docs/sdk/list-control", "index": 0, "asset": "sdk/list-control.webp", "steps": [
+    ["wait", 500], ["click", "Background", 1], ["wait", 750], ["click", "Background", 0], ["wait", 750],
+    ["click", "Background", 3], ["wait", 750], ["click", "Background", 3], ["wait", 750], ["click", "Background", 4],
+    ["wait", 750]] },
+  "input-field": {"page": "/docs/sdk/input-field", "index": 0, "asset": "sdk/input-field.webp", "steps": [
+    ["wait", 500], ["click", "BsInputField", 0], ["wait", 1200], ["click", "text:s", 0], ["wait", 250],
+    ["click", "text:a", 0], ["wait", 250], ["click", "text:b", 0], ["wait", 250], ["click", "text:e", 0],
+    ["wait", 250], ["click", "text:r", 0], ["wait", 1000], ["click", "text:OK", 0], ["wait", 1200]] },
+  "color-picker": {"page": "/docs/sdk/color-picker", "index": 0, "asset": "sdk/color-picker.webp", "steps": [
+    ["wait", 500], ["click", "BsColorPicker", 0], ["wait", 1200], ["click", "HueRing", 0, 0.5, 0.03], ["wait", 500],
+    ["click", "HueRing", 0, 0.97, 0.5], ["wait", 500], ["drag", "SaturationValue", 0, 0.3, 0.3, 0.8, 0.2, 700],
+    ["wait", 1200]] },
+  "color-circle": {"page": "/docs/sdk/color-picker", "index": 1, "asset": "sdk/color-circle.webp", "steps": [
+    ["wait", 500], ["click", "HueRing", 0, 0.5, 0.03], ["wait", 450], ["click", "HueRing", 0, 0.97, 0.5],
+    ["wait", 450], ["click", "HueRing", 0, 0.5, 0.97], ["wait", 450],
+    ["drag", "SaturationValue", 0, 0.5, 0.5, 0.85, 0.15, 700], ["wait", 1000]] },
+  "modal": {"page": "/docs/sdk/modals", "index": 0, "asset": "sdk/modal.webp", "steps": [
+    ["wait", 500], ["click", "text:OPEN", 0], ["wait", 1750], ["click", "text:CLOSE", 0], ["wait", 1500]] },
+  "dialog": {"page": "/docs/sdk/modals", "index": 1, "asset": "sdk/dialog.webp", "steps": [
+    ["wait", 500], ["click", "text:DELETE", 0], ["wait", 1750], ["click", "text:CANCEL", 0], ["wait", 1500]] },
+  "gradient": {"page": "/docs/sdk/images", "index": 0, "asset": "sdk/gradient.webp", "steps": [
+    ["wait", 400], ["click", "BsTextButton", 0], ["wait", 1500], ["click", "BsTextButton", 0], ["wait", 1500]] },
+  "fills": {"page": "/docs/sdk/images", "index": 1, "asset": "sdk/fills.webp", "steps": [
+    ["wait", 300], ["drag", "SlidingArea", 0, 0.65, 0.5, 0.98, 0.5, 700], ["wait", 900],
+    ["drag", "SlidingArea", 0, 0.98, 0.5, 0.2, 0.5, 900], ["wait", 900],
+    ["drag", "SlidingArea", 0, 0.2, 0.5, 0.65, 0.5, 700], ["wait", 900]] },
+  "web-image": {"page": "/docs/sdk/images", "index": 2, "asset": "sdk/web-image.webp", "steps": [
+    ["wait", 7000]] },
+  "labels-autosize": {"page": "/docs/sdk/labels", "index": 0, "asset": "sdk/labels-autosize.webp", "steps": [
+    ["wait", 300], ["drag", "SlidingArea", 0, 0.98, 0.5, 0.05, 0.5, 1600], ["wait", 900],
+    ["drag", "SlidingArea", 0, 0.05, 0.5, 0.98, 0.5, 1600], ["wait", 900]] },
+  "scroll-area": {"page": "/docs/sdk/scroll-area", "index": 0, "asset": "sdk/scroll-area.webp", "steps": [
+    ["wait", 500], ["scroll", "ScrollArea", 0, -120], ["wait", 200], ["scroll", "ScrollArea", 0, -120],
+    ["wait", 200], ["scroll", "ScrollArea", 0, -120], ["wait", 200], ["scroll", "ScrollArea", 0, -120],
+    ["wait", 200], ["scroll", "ScrollArea", 0, -120], ["wait", 200], ["scroll", "ScrollArea", 0, -120],
+    ["wait", 200], ["wait", 800], ["scroll", "ScrollArea", 0, 120], ["wait", 200], ["scroll", "ScrollArea", 0, 120],
+    ["wait", 200], ["scroll", "ScrollArea", 0, 120], ["wait", 200], ["scroll", "ScrollArea", 0, 120], ["wait", 200],
+    ["scroll", "ScrollArea", 0, 120], ["wait", 200], ["scroll", "ScrollArea", 0, 120], ["wait", 200], ["leave"],
+    ["wait", 900]] },
+  "radial-showcase": {"page": "/docs/reactive/layout/custom", "index": 0, "asset": "layout/radial-showcase.webp", "steps": [
+    ["wait", 500], ["drag", "SlidingArea", 0, 0.98, 0.5, 0.5, 0.5, 1200], ["wait", 600],
+    ["drag", "SlidingArea", 0, 0.5, 0.5, 0.98, 0.5, 1200], ["wait", 800]] },
+  "radial-in-flex": {"page": "/docs/reactive/layout/custom", "index": 1, "asset": "layout/radial-in-flex.webp", "steps": [
+    ["wait", 600], ["click", "BsTextButton", 0], ["wait", 1000], ["click", "BsTextButton", 0], ["wait", 1000],
+    ["click", "BsTextButton", 0], ["wait", 1500], ["click", "BsTextButton", 1], ["wait", 700],
+    ["click", "BsTextButton", 1], ["wait", 700], ["click", "BsTextButton", 1], ["wait", 900]] },
+  "flex-in-radial": {"page": "/docs/reactive/layout/custom", "index": 2, "asset": "layout/flex-in-radial.webp", "steps": [
+    ["wait", 600], ["click", "BsToggle", 0], ["wait", 1500], ["click", "BsToggle", 0], ["wait", 1200]] }
+}

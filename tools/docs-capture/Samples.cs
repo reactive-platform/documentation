@@ -423,6 +423,10 @@ internal class RootSizes : ReactiveComponent {
     }
 }
 
+/// <summary>
+/// The introduction's animation sample: a grid that a diagonal wave runs across every period. Each tile pops up,
+/// settles back with an overshoot and shifts its color. Two waves make a full cycle, so a 2 period recording loops.
+/// </summary>
 internal class Roots : ReactiveComponent {
     protected override GameObject Construct() {
         return new Background {

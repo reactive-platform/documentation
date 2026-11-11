@@ -1,6 +1,6 @@
 #!/bin/sh
-# Usage: rec.sh <name> <asset.gif> <show args> -- <cmd> <cmd> ...
-# Shows the sample on the dark backdrop, records the commands at 20 fps and assembles the GIF.
+# Usage: rec.sh <name> <asset.webp> <show args> -- <cmd> <cmd> ...
+# Shows the sample on the dark backdrop, records the commands at 20 fps and encodes the clip.
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO=$(cd "$HERE/../../.." && pwd)
 SHOTS="$HERE/../shots"

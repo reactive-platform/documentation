@@ -21,10 +21,10 @@ timescale 0          freeze animations
 
 `scripts/launch-bs.sh` starts the game in a headless gamescope session, so nothing needs a desktop.
 
-Most assets are GIFs. `rec start <name> 20` locks the game to 20 frames per second and writes every frame to
-`UserData/docs-rec/<name>`, so the commands that follow (clicks, hovers, value changes) land on exact frames,
-and `rec stop` ends the clip. `scripts/rec.sh` wraps that for one sample and `scripts/gif.py` crops the frames
-to what moved and encodes the GIF with the docs' dark backdrop baked in. `scripts/record-all.sh` holds the
+Most assets are lossless animated WebP images. `rec start <name> 20` locks the game to 20 frames per second and
+writes every frame to `UserData/docs-rec/<name>`, so the commands that follow (clicks, hovers, value changes) land on
+exact frames, and `rec stop` ends the clip. `scripts/rec.sh` wraps that for one sample and `scripts/gif.py` crops
+the frames to what moved and encodes the clip with the docs' dark backdrop baked in. `scripts/record-all.sh` holds the
 sequence for every animated asset. The few still images come from `scripts/cap.sh <asset>`, which shoots the
 sample over black and over white, recovers the alpha and trims it into a transparent PNG; `capture-static.sh`
 lists them.
@@ -37,6 +37,11 @@ cp bin/Release/net48/DocsCapture.dll "/path/to/Beat Saber/Plugins/"
 BEAT_SABER_DIR="/path/to/Beat Saber" scripts/launch-bs.sh &
 scripts/wait-menu.sh && scripts/record-all.sh && scripts/capture-static.sh
 ```
+
+The previews of the docs' Playground examples are recorded in the browser build instead, from the code on the page.
+`web/record.sh [name ...]` opens each page in Electron while the dev server runs, starts the example, drives it with
+the input steps in `web/examples.json` and encodes the result the same way. A spec can also name a C# file next to
+it instead of a page, which then runs on the playground page.
 
 `wait-menu.sh` matters: showing a sample before the main menu exists breaks Reactive's resource initialisers for the
 rest of the process. The Reactive assemblies are read from the game's `Libs` and `Plugins`; `ReactiveLibsDir`,

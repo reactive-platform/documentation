@@ -250,5 +250,7 @@
     ["click", "IncButton", 0], ["wait", 1000]] },
   "containers-1": {"code": "ContainersNoController.cs", "asset": "layout/containers-1.png", "zoom": 1, "steps": [["wait", 1500]]},
   "containers-2": {"code": "ContainersController.cs", "asset": "layout/containers-2.png", "zoom": 1, "steps": [["wait", 1500]]},
-  "roots-2": {"code": "RootFitsContent.cs", "asset": "layout/roots-2.png", "zoom": 1, "steps": [["wait", 1500]]}
+  "roots-2": {"code": "RootFitsContent.cs", "asset": "layout/roots-2.png", "zoom": 1, "steps": [["wait", 1500]]},
+  "flex-item": {"code": "FlexItemShot.cs", "asset": "layout/flex-item.png", "zoom": 1, "steps": [["wait", 1500]]},
+  "root-expands": {"code": "RootExpandsShot.cs", "asset": "layout/root-expands.png", "zoom": 1, "steps": [["wait", 1500]]}
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """gif.py <frames dir> <out.webp|out.gif> [fps] [margin]
 Crops every frame to the union bounding box of what differs from the backdrop colour, then encodes a looping clip,
-a lossless WebP by default, or a GIF when the name ends in .gif. GIF_HOLD=0 turns off the hold that hides the game's
+a lossless WebP by default, a GIF when the name ends in .gif, or a still of the last frame for .png. GIF_HOLD=0 turns off the hold that hides the game's
 shimmer, for clips from the browser build, which has none. GIF_CENTER=1 keeps the crop centred on the frame."""
 import sys, os, glob, subprocess, tempfile
 import numpy as np
@@ -51,7 +51,10 @@ for i, f in enumerate(files):
     Image.fromarray(cur).save(os.path.join(tmp, f'c{i:04d}.png'))
 os.makedirs(os.path.dirname(out), exist_ok=True)
 src_frames = ['-framerate', str(fps), '-i', os.path.join(tmp, 'c%04d.png')]
-if out.endswith('.webp'):
+if out.endswith('.png'):
+    # A still keeps only the last frame, once everything has settled
+    Image.open(os.path.join(tmp, f'c{len(files) - 1:04d}.png')).save(out, optimize=True)
+elif out.endswith('.webp'):
     # WebP keeps full colour, so gradients and blurred panels don't band the way a 160-colour GIF palette does
     lossless = os.environ.get('WEBP_LOSSLESS', '1')
     quality = os.environ.get('WEBP_QUALITY', '85' if lossless == '0' else '100')

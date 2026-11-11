@@ -45,7 +45,7 @@ app.whenReady().then(async () => {
     await wc.loadURL(base + (spec.code ? playgroundUrl(spec.code) : spec.page));
     // A docs example is drawn at 1.5 times its size, the playground page at 1, and the in-game captures at 10 pixels
     // per point, which the docs scale matches
-    const zoom = spec.code ? 1.5 : 1;
+    const zoom = spec.zoom ?? (spec.code ? 1.5 : 1);
     wc.setZoomFactor(zoom);
     await wc.executeJavaScript('document.fonts.ready.then(() => true)');
 

@@ -140,15 +140,16 @@ class Derived : ReactiveComponent {
             },
 
             Children = {
-                new Label {
-                    FontSize = 4f,
-                    sText = sum.Map(x => $"Follows a and b: {x}")
-                },
-
-                new Label {
-                    FontSize = 4f,
-                    sText = captured.Map(x => $"Follows only a: {x}")
-                },
+                CreateResult(
+                    title: "Follows a and b",
+                    text: sum,
+                    color: new Color(0.4f, 0.9f, 0.6f)
+                ),
+                CreateResult(
+                    title: "Follows only a",
+                    text: captured,
+                    color: new Color(1f, 0.6f, 0.3f)
+                ),
 
                 CreateSlider(
                     name: "a",
@@ -160,6 +161,47 @@ class Derived : ReactiveComponent {
                 )
             }
         }.Use();
+    }
+
+    [StateGen]
+    private static Background CreateResult(
+        string title,
+        IState<string> text,
+        Color color
+    ) {
+        return new Background {
+            FlexController = {
+                JustifyContent = Justify.SpaceBetween,
+                AlignItems = Align.Center,
+                Padding = new() {
+                    left = 2.pt,
+                    right = 2.pt,
+                    top = 0.5f.pt,
+                    bottom = 0.5f.pt
+                }
+            },
+
+            FlexItem = {
+                Size = new() { x = 50.pt }
+            },
+
+            Sprite = BeatSaberResources.Sprites.background,
+            PixelsPerUnit = 10f,
+            Color = color with { a = 0.2f },
+
+            Children = {
+                new Label {
+                    Text = title,
+                    FontSize = 3f,
+                    Color = color
+                },
+
+                new Label {
+                    FontSize = 4f,
+                    sText = text.In()
+                }
+            }
+        };
     }
 
     private static BsSlider CreateSlider(string name, State<float> state) {

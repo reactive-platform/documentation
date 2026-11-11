@@ -149,9 +149,8 @@ one per ancestor.
 
 A controller of another kind can't join the parent's tree, so it forms its own, and the parent treats that subtree as a
 single leaf. The parent measures it when its size isn't fixed, and the subtree lays itself out within whatever size it's
-given. Any layout algorithm can sit inside flexbox this way, and flexbox inside it, at the cost of a measuring pass at the
-boundary. [Your own Layout Controller](/docs/reactive/layout/custom) shows both directions with a radial controller, and
-[Layout Engine Internals](/docs/reactive/under-the-hood/layout#stitching) explains the mechanism.
+given. Any layout algorithm can sit inside flexbox this way, and flexbox inside it, at the cost of a measuring pass at
+the boundary. [Your own Layout Controller](/docs/reactive/layout/custom) shows both directions with a radial controller.
 
 This diagram draws a small screen as trees, with the flex layouts joined into one and the radial controller keeping its own:
 

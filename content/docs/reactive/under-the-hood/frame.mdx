@@ -146,8 +146,7 @@ one tree lead to a single recalculation of its root.
 
 That recalculation runs the layout engine over the whole tree, within the rect the root is attached to, and hands the
 results down, where each node writes its rect only if it changed. A hidden root is skipped until it's shown, and changes
-made in a `LayoutAppliedEvent` handler wait for the next run, so a pass never changes under itself. [Layout Engine
-Internals](/docs/reactive/under-the-hood/layout) covers what recalculating a tree involves, and the whole path looks
+made in a `LayoutAppliedEvent` handler wait for the next run, so a pass never changes under itself. The whole path looks
 like this:
 
 ```mermaid

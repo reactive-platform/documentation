@@ -477,8 +477,7 @@ A controller has a few jobs, and its members are grouped by them:
 - **Applying its own modifier:** `UpdateSelf` does this when the container is a root, which the radial controller doesn't
   need.
 - **Stitching:** a `ContextType` of `null` means a parent never stitches this controller into its tree and measures it
-  instead. [Layout Engine Internals](/docs/reactive/under-the-hood/layout#stitching) explains how to make controllers of
-  your own kind stitch, the way flex controllers do.
+  instead.
 
 Put together, these pieces are all a controller needs, so the radial one above works as a template for your own. Replace
 the circle math in `Recalculate` with your own placement rules, keep the bookkeeping and the update event as they are,

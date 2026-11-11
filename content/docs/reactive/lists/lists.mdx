@@ -10,10 +10,11 @@ keeps the cells in step with the items. Add and remove names here, and keep an e
 
 <Playground preview="/assets/lists/repeater.webp">
 ```csharp excerpt
-new Repeater<string, Label> {
+new Repeater<string, Background> {
     FlexController = {
-        FlexDirection = FlexDirection.Column,
-        Gap = 0.5f.pt
+        FlexDirection = FlexDirection.Row,
+        FlexWrap = Wrap.Wrap,
+        Gap = 1.pt
     },
 
     sItems = names,
@@ -22,59 +23,80 @@ new Repeater<string, Label> {
         // Only runs when there are more items than cells
         built.Value++;
 
-        return new Label {
-            sText = context.Map(x => $"{x.Index + 1}. {x.Item}")
-        };
+        return CreateChip(context);
     }
 }
 ```
 ```csharp
-class Names : ReactiveComponent {
+class Squad : ReactiveComponent {
+    private static readonly string[] AllNames = [
+        "Ada", "Linus", "Grace", "Dennis", "Margaret",
+        "Alan", "Barbara", "Ken", "Frances", "Donald"
+    ];
+
     protected override GameObject Construct() {
-        var names = Remember<IReadOnlyList<string>>([
-            "Ada",
-            "Linus",
-            "Grace",
-            "Dennis"
-        ]);
+        var names = Remember<IReadOnlyList<string>>(AllNames[..5]);
         var built = Remember(0);
 
-        string[] pool = ["Margaret", "Alan", "Barbara", "Ken"];
-        var next = 0;
+        var summary = RememberDerived(
+            names,
+            built,
+            predicate: (x, y) => $"{x.Count} names, {y} cells built"
+        );
 
         return new Layout {
             FlexController = {
                 FlexDirection = FlexDirection.Column,
                 AlignItems = Align.Center,
                 JustifyContent = Justify.Center,
-                Gap = 3.pt
+                Gap = 2.pt
             },
 
             Children = {
-                new Repeater<string, Label> {
+                // A fixed width, so the chips wrap onto new rows as the
+                // list grows instead of running out of the view
+                new Background {
                     FlexController = {
-                        FlexDirection = FlexDirection.Column,
-                        AlignItems = Align.FlexStart,
-                        Gap = 0.5f.pt
+                        Padding = 2.pt
                     },
 
-                    sItems = names,
+                    FlexItem = {
+                        Size = new() { x = 72.pt }
+                    },
 
-                    ConstructCell = context => {
-                        // Only runs when there are more items than cells
-                        built.Value++;
+                    Sprite = BeatSaberResources.Sprites.background,
+                    PixelsPerUnit = 10f,
+                    Color = Color.white with { a = 0.06f },
 
-                        return new Label {
-                            Alignment = TextAlignmentOptions.Left,
-                            sText = context.Map(x => $"{x.Index + 1}. {x.Item}")
-                        };
+                    Children = {
+                        new Repeater<string, Background> {
+                            FlexController = {
+                                FlexDirection = FlexDirection.Row,
+                                FlexWrap = Wrap.Wrap,
+                                JustifyContent = Justify.Center,
+                                Gap = 1.pt
+                            },
+
+                            FlexItem = {
+                                FlexGrow = 1f
+                            },
+
+                            sItems = names,
+
+                            ConstructCell = context => {
+                                // Only runs with more items than cells
+                                built.Value++;
+
+                                return CreateChip(context);
+                            }
+                        }
                     }
                 },
 
                 new Label {
                     FontSize = 3f,
                     Color = Color.white with { a = 0.6f },
-                    sText = built.Map(x => $"Cells built: {x}")
+                    sText = summary
                 },
 
                 new Layout {
@@ -85,23 +107,80 @@ class Names : ReactiveComponent {
                     Children = {
                         new BsTextButton {
                             Text = "Add",
-                            OnClick = () => names.Value = [
-                                ..names.Value,
-                                pool[next++ % pool.Length]
-                            ]
+                            OnClick = () => names.Value = AllNames
+                                .Take(names.Value.Count + 1)
+                                .ToArray()
                         },
 
                         new BsTextButton {
                             Text = "Remove",
-                            OnClick = () => {
-                                var kept = Math.Max(names.Value.Count - 1, 0);
-                                names.Value = names.Value.Take(kept).ToArray();
-                            }
+                            OnClick = () => names.Value = AllNames
+                                .Take(Math.Max(names.Value.Count - 1, 0))
+                                .ToArray()
                         }
                     }
                 }
             }
         }.Use();
+    }
+
+    // Everything the item decides comes from the context, so a reused cell
+    // takes on the color and name of its new item
+    [StateGen]
+    private static Background CreateChip(CellContext<string> context) {
+        var color = context.Map(x => GetColor(x.Item));
+
+        return new Background {
+            FlexController = {
+                AlignItems = Align.Center,
+                Gap = 1.pt,
+                Padding = new() {
+                    left = 1.pt,
+                    right = 2.pt,
+                    top = 1.pt,
+                    bottom = 1.pt
+                }
+            },
+
+            Sprite = BeatSaberResources.Sprites.background,
+            PixelsPerUnit = 10f,
+            sColor = color.Map(x => x with { a = 0.25f }),
+
+            Children = {
+                new Background {
+                    FlexController = {
+                        JustifyContent = Justify.Center,
+                        AlignItems = Align.Center
+                    },
+
+                    FlexItem = {
+                        Size = 4.pt
+                    },
+
+                    Sprite = BeatSaberResources.Sprites.background,
+                    PixelsPerUnit = 30f,
+                    sColor = color,
+
+                    Children = {
+                        new Label {
+                            FontSize = 2.6f,
+                            Color = Color.black,
+                            sText = context.Map(x => x.Item[..1])
+                        }
+                    }
+                },
+
+                new Label {
+                    FontSize = 3f,
+                    sText = context.Map(x => x.Item)
+                }
+            }
+        };
+    }
+
+    private static Color GetColor(string name) {
+        var hue = Array.IndexOf(AllNames, name) * 0.1f;
+        return Color.HSVToRGB(hue, 0.55f, 1f);
     }
 }
 ```
@@ -405,6 +484,7 @@ class Chips : ReactiveComponent {
             Children = {
                 new Repeater<string, Background> {
                     FlexController = {
+                        FlexDirection = FlexDirection.Row,
                         Gap = 1.pt
                     },
 

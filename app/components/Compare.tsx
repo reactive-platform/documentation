@@ -8,7 +8,7 @@ type Side = 'BSML' | 'Reactive';
 type Block = ReactElement<{title?: string}>;
 
 // One choice for the whole page, so a reader who picks a side doesn't have to pick it again in every frame
-let chosen: Side = 'Reactive';
+let chosen: Side = 'BSML';
 const listeners = new Set<() => void>();
 
 function choose(side: Side) {
@@ -42,7 +42,7 @@ export default function Compare({children}: {children: ReactNode}) {
     const bsml = blocks.filter((block) => block.props.title !== 'Reactive');
     const reactive = blocks.find((block) => block.props.title === 'Reactive');
 
-    const picked = useSyncExternalStore(subscribe, () => chosen, () => 'Reactive' as Side);
+    const picked = useSyncExternalStore(subscribe, () => chosen, () => 'BSML' as Side);
     const side = reactive ? picked : 'BSML';
 
     return (

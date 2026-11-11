@@ -243,7 +243,10 @@
     ["click", "BsTextButton", 0], ["wait", 1500], ["click", "BsTextButton", 1], ["wait", 700],
     ["click", "BsTextButton", 1], ["wait", 700], ["click", "BsTextButton", 1], ["wait", 900]] },
   "flex-in-radial": {"page": "/docs/reactive/layout/custom", "index": 2, "asset": "layout/flex-in-radial.webp", "steps": [
-    ["wait", 600], ["click", "BsToggle", 0], ["wait", 1500], ["click", "BsToggle", 0], ["wait", 1200]] },
+    ["wait", 800], ["click", "IncButton", 0], ["wait", 900], ["click", "IncButton", 0], ["wait", 1100],
+    ["click", "BsToggle", 0], ["wait", 1300], ["click", "DecButton", 0], ["wait", 900], ["click", "DecButton", 0],
+    ["wait", 900], ["click", "BsToggle", 0], ["wait", 1100], ["click", "DecButton", 0], ["wait", 900],
+    ["click", "IncButton", 0], ["wait", 1000]] },
   "containers-1": {"code": "ContainersNoController.cs", "asset": "layout/containers-1.png", "zoom": 1, "steps": [["wait", 1500]]},
   "containers-2": {"code": "ContainersController.cs", "asset": "layout/containers-2.png", "zoom": 1, "steps": [["wait", 1500]]},
   "roots-2": {"code": "RootFitsContent.cs", "asset": "layout/roots-2.png", "zoom": 1, "steps": [["wait", 1500]]}

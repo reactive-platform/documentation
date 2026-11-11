@@ -18,7 +18,7 @@ between neighbours, and `Padding` keeps all of them away from the container's ed
 
 Try this sandbox, where five blocks of different sizes sit in a box and each control changes one of its properties:
 
-<Playground scale="1" preview="/assets/layout/flex-sandbox.webp">
+<Playground scale="0.85" preview="/assets/layout/flex-sandbox.webp">
 ```csharp
 partial class FlexSandbox : ReactiveComponent {
     protected override GameObject Construct() {
@@ -113,7 +113,7 @@ partial class FlexSandbox : ReactiveComponent {
                             name: "Justify",
                             control: new BsSegmentedControl<Justify> {
                                 FlexItem = {
-                                    Size = new() { x = 60.pt, y = 5.5f.pt }
+                                    Size = new() { x = 78.pt, y = 5.5f.pt }
                                 },
                                 Items = JustifyOptions,
                                 sKey = justify,
@@ -125,7 +125,7 @@ partial class FlexSandbox : ReactiveComponent {
                             name: "Align",
                             control: new BsSegmentedControl<Align> {
                                 FlexItem = {
-                                    Size = new() { x = 46.pt, y = 5.5f.pt }
+                                    Size = new() { x = 58.pt, y = 5.5f.pt }
                                 },
                                 Items = AlignOptions,
                                 sKey = align,
@@ -627,7 +627,7 @@ class Badge : ReactiveComponent {
     private enum Corner { TopLeft, TopRight, BottomLeft, BottomRight }
 
     protected override GameObject Construct() {
-        var corner = Remember(Corner.TopRight);
+        var corner = Remember(Corner.TopLeft);
 
         return new Layout {
             FlexController = {
@@ -695,6 +695,7 @@ class Badge : ReactiveComponent {
                             Children = {
                                 new Label {
                                     Text = "NEW",
+                                    Alignment = TextAlignmentOptions.Capline,
                                     FontSize = 2.8f,
                                     Color = Color.black
                                 }
@@ -764,22 +765,6 @@ class Constraints : ReactiveComponent {
             },
 
             Children = {
-                new Layout {
-                    FlexController = { Gap = 4.pt },
-
-                    Children = {
-                        new BsToggle {
-                            Toggled = true,
-                            OnToggleStateChanged = x => horizontal.Value = x
-                        }.InNamedRail("Horizontal"),
-
-                        new BsToggle {
-                            Toggled = true,
-                            OnToggleStateChanged = x => vertical.Value = x
-                        }.InNamedRail("Vertical")
-                    }
-                },
-
                 // Has no controller, so the background inside is a root
                 new Background {
                     FlexItem = {
@@ -812,6 +797,22 @@ class Constraints : ReactiveComponent {
                                 }
                             }
                         }
+                    }
+                },
+
+                new Layout {
+                    FlexController = { Gap = 4.pt },
+
+                    Children = {
+                        new BsToggle {
+                            Toggled = true,
+                            OnToggleStateChanged = x => horizontal.Value = x
+                        }.InNamedRail("Horizontal"),
+
+                        new BsToggle {
+                            Toggled = true,
+                            OnToggleStateChanged = x => vertical.Value = x
+                        }.InNamedRail("Vertical")
                     }
                 }
             }

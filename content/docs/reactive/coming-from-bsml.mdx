@@ -82,53 +82,65 @@ public class Settings : ReactiveComponent {
 
         return new Layout {
             FlexController = {
-                FlexDirection = FlexDirection.Column,
-                JustifyContent = Justify.Center,
-                Gap = 1.pt,
-                Padding = new() { left = 25.pt, right = 25.pt }
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center
             },
 
             Children = {
-                new BsToggle {
-                    sToggled = menuButton,
-                    OnToggleStateChanged = x => menuButton.Value = x
-                }.InNamedRail("Menu button enabled"),
+                new Layout {
+                    FlexController = {
+                        FlexDirection = FlexDirection.Column,
+                        AlignItems = Align.Stretch,
+                        Gap = 1.pt
+                    },
 
-                new BsSlider {
                     FlexItem = {
-                        Size = new() { x = 40.pt, y = 6.pt }
+                        Size = new() { x = 70.pt }
                     },
 
-                    MinValue = 0f,
-                    MaxValue = 100f,
-                    ValueStep = 5f,
-                    sValue = volume,
-                    OnValueChanged = x => volume.Value = x
-                }.InNamedRail("Volume"),
+                    Children = {
+                        new BsToggle {
+                            sToggled = menuButton,
+                            OnToggleStateChanged = x => menuButton.Value = x
+                        }.InNamedRail("Menu button enabled"),
 
-                new BsDropdown<string> {
-                    FlexItem = {
-                        Size = new() { x = 40.pt, y = 6.pt }
-                    },
+                        new BsSlider {
+                            FlexItem = {
+                                Size = new() { x = 40.pt, y = 6.pt }
+                            },
 
-                    Items = new Dictionary<string, BsDropdownItem> {
-                        ["default"] = new("Game Default", null),
-                        ["english"] = new("English", null),
-                        ["german"] = new("Deutsch", null)
-                    },
+                            MinValue = 0f,
+                            MaxValue = 100f,
+                            ValueStep = 5f,
+                            sValue = volume,
+                            OnValueChanged = x => volume.Value = x
+                        }.InNamedRail("Volume"),
 
-                    Key = language.Value,
-                    OnKeyChanged = x => language.Value = x
-                }.InNamedRail("Language"),
+                        new BsDropdown<string> {
+                            FlexItem = {
+                                Size = new() { x = 40.pt, y = 6.pt }
+                            },
 
-                new Label {
-                    FlexItem = {
-                        Margin = new() { top = 3.pt },
-                        AlignSelf = Align.Center
-                    },
+                            Items = new Dictionary<string, BsDropdownItem> {
+                                ["default"] = new("Game Default", null),
+                                ["english"] = new("English", null),
+                                ["german"] = new("Deutsch", null)
+                            },
 
-                    Color = Color.white with { a = 0.5f },
-                    sText = volume.Map(x => $"Volume is at {x:0}%")
+                            Key = language.Value,
+                            OnKeyChanged = x => language.Value = x
+                        }.InNamedRail("Language"),
+
+                        new Label {
+                            FlexItem = {
+                                Margin = new() { top = 3.pt },
+                                AlignSelf = Align.Center
+                            },
+
+                            Color = Color.white with { a = 0.5f },
+                            sText = volume.Map(x => $"Volume is at {x:0}%")
+                        }
+                    }
                 }
             }
         }.Use();

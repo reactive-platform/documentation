@@ -27,9 +27,12 @@ partial class PlayerDemo : ReactiveComponent {
         var box = CreateBox();
 
         _time = Remember(0f);
-        _toggleText = Remember("Pause");
+        _toggleText = Remember("Play");
         _player = RememberAnimationPlayer<IReactiveComponent>(box);
+
+        // Starts at the end, with the box in place, until you press Play
         _player.Play(PopIn);
+        _player.Complete();
 
         return CreateLayout(
             box: box,
@@ -652,8 +655,8 @@ partial class DirectionDemo {
             },
 
             Children = {
-                buttonRow,
-                rowList
+                rowList,
+                buttonRow
             }
         }.Use();
     }

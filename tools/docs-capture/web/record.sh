@@ -9,7 +9,8 @@ FRAMES=${TMPDIR:-/tmp}/docs-web-rec
 names=${*:-$(python3 -c "import json,sys; print(' '.join(json.load(open(sys.argv[1]))))" "$HERE/examples.json")}
 for name in $names; do
   asset=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))[sys.argv[2]]['asset'])" "$HERE/examples.json" "$name")
+  fps=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))[sys.argv[2]].get('fps', 20))" "$HERE/examples.json" "$name")
   if $ELECTRON --no-sandbox "$HERE/record.cjs" "$HERE/examples.json" "$name" "$FRAMES/$name" 2>&1 | grep -E "frames|loop|no node|failed|no example|Error:"; then
-    GIF_WATERMARK=0 GIF_HOLD=0 GIF_CENTER=1 python3 -I "$HERE/../scripts/gif.py" "$FRAMES/$name" "$REPO/public/assets/$asset" < /dev/null
+    GIF_WATERMARK=0 GIF_HOLD=0 GIF_CENTER=1 python3 -I "$HERE/../scripts/gif.py" "$FRAMES/$name" "$REPO/public/assets/$asset" "$fps" < /dev/null
   fi
 done

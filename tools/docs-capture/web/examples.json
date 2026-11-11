@@ -67,19 +67,19 @@
     ["wait", 350], ["scroll", "text:scroll here", 0, -120], ["wait", 800], ["scroll", "text:scroll here", 0, 120],
     ["wait", 350], ["scroll", "text:scroll here", 0, 120], ["wait", 350], ["scroll", "text:scroll here", 0, 120],
     ["wait", 350], ["scroll", "text:scroll here", 0, 120], ["leave"], ["wait", 1000]] },
-  "player": {"page": "/docs/reactive/animation/players", "index": 0, "asset": "animation/player.webp", "steps": [
+  "player": {"page": "/docs/reactive/animation/players", "index": 0, "asset": "animation/player.webp", "fps": 30, "steps": [
     ["wait", 1800], ["click", "BsTextButton", 0], ["wait", 1000], ["click", "BsTextButton", 0], ["wait", 1200],
     ["click", "BsTextButton", 1], ["wait", 1200], ["click", "BsTextButton", 2], ["leave"], ["wait", 1500]] },
-  "tracks": {"page": "/docs/reactive/animation/players", "index": 1, "asset": "animation/tracks.webp", "steps": [
+  "tracks": {"page": "/docs/reactive/animation/players", "index": 1, "asset": "animation/tracks.webp", "fps": 30, "steps": [
     ["wait", 700], ["click", "BsTextButton", 0], ["wait", 1400], ["click", "BsTextButton", 1], ["wait", 1400],
     ["click", "BsTextButton", 2], ["leave"], ["wait", 1600]] },
-  "repeating": {"page": "/docs/reactive/animation/players", "index": 2, "asset": "animation/repeating.webp", "steps": [
+  "repeating": {"page": "/docs/reactive/animation/players", "index": 2, "asset": "animation/repeating.webp", "fps": 30, "steps": [
     ["wait", 700], ["click", "BsTextButton", 0], ["wait", 1800], ["click", "BsTextButton", 1], ["wait", 3600],
     ["click", "BsTextButton", 3], ["wait", 2600], ["click", "BsTextButton", 4], ["leave"], ["wait", 1200]] },
-  "direction": {"page": "/docs/reactive/animation/players", "index": 3, "asset": "animation/direction.webp", "steps": [
+  "direction": {"page": "/docs/reactive/animation/players", "index": 3, "asset": "animation/direction.webp", "fps": 30, "steps": [
     ["wait", 700], ["click", "BsTextButton", 0], ["wait", 4000], ["click", "BsTextButton", 1], ["wait", 3000],
     ["click", "BsTextButton", 2], ["leave"], ["wait", 1000]] },
-  "drop": {"page": "/docs/reactive/animation/animated-states", "index": 3, "asset": "animation/drop.webp", "steps": [
+  "drop": {"page": "/docs/reactive/animation/animated-states", "index": 3, "asset": "animation/drop.webp", "fps": 30, "steps": [
     ["wait", 700], ["click", "BsTextButton", 0], ["wait", 2200], ["click", "BsTextButton", 0], ["leave"],
     ["wait", 2200]] },
   "flex-sandbox": {"page": "/docs/reactive/layout/yoga", "index": 0, "asset": "layout/flex-sandbox.webp", "steps": [
@@ -136,15 +136,15 @@
   "visibility": {"page": "/docs/reactive/layout/system", "index": 0, "asset": "layout/visibility.webp", "steps": [
     ["wait", 600], ["click", "BsToggle", 0], ["wait", 1300], ["click", "BsToggle", 0], ["wait", 1300],
     ["click", "BsToggle", 0], ["wait", 1300], ["click", "BsToggle", 0], ["wait", 800]] },
-  "animated-state": {"page": "/docs/reactive/animation/animated-states", "index": 0, "asset": "animation/animated-state.webp", "steps": [
+  "animated-state": {"page": "/docs/reactive/animation/animated-states", "index": 0, "asset": "animation/animated-state.webp", "fps": 30, "steps": [
     ["wait", 600], ["hover", "Background", 0], ["wait", 1500], ["leave"], ["wait", 1500], ["hover", "Background", 0],
     ["wait", 1500], ["leave"], ["wait", 900]] },
-  "timing": {"page": "/docs/reactive/animation/animated-states", "index": 1, "asset": "animation/timing.webp", "steps": [
+  "timing": {"page": "/docs/reactive/animation/animated-states", "index": 1, "asset": "animation/timing.webp", "fps": 30, "steps": [
     ["wait", 500], ["drag", "SlidingArea", 0, 0.02, 0.5, 0.98, 0.5, 500], ["wait", 2000],
-    ["drag", "SlidingArea", 0, 0.98, 0.5, 0.02, 0.5, 500], ["wait", 2000]] },
-  "curves": {"page": "/docs/reactive/animation/animated-states", "index": 2, "asset": "animation/curves.webp", "steps": [
+    ["drag", "SlidingArea", 0, 0.98, 0.5, -0.05, 0.5, 500], ["wait", 2000]] },
+  "curves": {"page": "/docs/reactive/animation/animated-states", "index": 2, "asset": "animation/curves.webp", "fps": 30, "steps": [
     ["wait", 400], ["click", "BsTextButton", 0], ["wait", 2300], ["click", "BsTextButton", 0], ["wait", 2300]] },
-  "interpolators": {"page": "/docs/reactive/animation/animated-states", "index": 4, "asset": "animation/interpolators.webp", "steps": [
+  "interpolators": {"page": "/docs/reactive/animation/animated-states", "index": 4, "asset": "animation/interpolators.webp", "fps": 30, "steps": [
     ["wait", 400], ["click", "BsTextButton", 0], ["wait", 1800], ["click", "BsTextButton", 0], ["wait", 1800]] },
   "repeater": {"page": "/docs/reactive/lists/lists", "index": 0, "asset": "lists/repeater.webp", "steps": [
     ["wait", 600], ["click", "BsTextButton", 0], ["wait", 800], ["click", "BsTextButton", 0], ["wait", 800],

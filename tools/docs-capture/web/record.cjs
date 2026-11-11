@@ -19,7 +19,9 @@ const path = require('path');
 const [specPath, name, outDir] = process.argv.slice(-3);
 const spec = JSON.parse(fs.readFileSync(specPath, 'utf8'))[name];
 const base = process.env.DOCS_URL || 'http://localhost:3000';
-const fps = 20;
+// Shots per second, 20 unless a spec asks for more, like 30 for quick animations. Shots are taken on the page's 60
+// frames per second, so the rate has to divide 60.
+const fps = spec.fps ?? 20;
 
 app.commandLine.appendSwitch('force-device-scale-factor', '1');
 app.disableHardwareAcceleration();
@@ -39,6 +41,7 @@ function playgroundUrl(file) {
 }
 
 app.whenReady().then(async () => {
+    if (60 % fps !== 0) return fail(`fps ${fps} doesn't divide 60`);
     const win = new BrowserWindow({ width: 1280, height: 900, show: false, webPreferences: { offscreen: true } });
     const wc = win.webContents;
     wc.setFrameRate(60);
@@ -98,17 +101,26 @@ app.whenReady().then(async () => {
     // A couple of pixels in from the edge, where the frame's border can bleed in
     const rect = { x: Math.ceil(box[0]) + 2, y: Math.ceil(box[1]) + 2, width: Math.floor(box[2] - box[0]) - 4, height: Math.floor(box[3] - box[1]) - 4 };
 
-    // Every paint replaces the latest frame, and a timer samples it at a fixed rate
+    // The page draws a frame every 1/60 s, but paints arrive a few milliseconds early or late and stop while nothing
+    // changes. A timer sampling the latest paint would catch one page frame or two in turn, so motion would stutter.
+    // Each paint is placed on the page's own frame count instead, and every step-th frame becomes a shot.
+    const frameMs = 1000 / 60;
+    const step = Math.max(1, Math.round(60 / fps));
     const shots = [];
     let latest = null;
+    let start = 0;
+    let next = 0;
+    const advance = (frame) => {
+        for (; next < frame; next += step) shots.push(latest);
+    };
     wc.on('paint', (_e, _dirty, image) => {
+        const now = performance.now();
+        if (latest) advance(Math.round((now - start) / frameMs));
+        else start = now;
         latest = image.crop(rect);
     });
     wc.invalidate();
     await sleep(100);
-    const sampler = setInterval(() => {
-        if (latest) shots.push(latest);
-    }, 1000 / fps);
 
     const point = (target, nth, fx = 0.5, fy = 0.5) =>
         wc.executeJavaScript(`(() => {
@@ -192,7 +204,8 @@ app.whenReady().then(async () => {
         }
     }
 
-    clearInterval(sampler);
+    wc.removeAllListeners('paint');
+    advance(Math.round((performance.now() - start) / frameMs));
     let clip = shots;
     if (spec.loop) {
         // An endless animation is cut where a frame matches the one about loop frames later, so the clip repeats

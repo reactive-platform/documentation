@@ -1,15 +1,17 @@
 ---
 title: "Performance Benchmarks"
-description: Reactive V2 against V1 and BSML, in BeatLeader and in stress tests, on PC and Quest.
+description: Reactive V2 against V1 and BSML, in BeatLeader and in stress tests.
 ---
 
-We measured BeatLeader's own UI on Reactive V1 and V2, then ran the same stress tests on V1, V2 and BSML on PC, and on Reactive and BSML on Quest 3.
+We measured BeatLeader's own UI on Reactive V1 and V2, then ran the same stress tests on V1, V2 and BSML. In BeatLeader,
+UI time stayed the same while V1's memory leak is gone. In the stress tests, V2 mounts about 4× faster than V1 and lays
+out faster too, and many writes in one frame cost it far less, though a single write takes a few microseconds longer.
 
-- **BeatLeader:** UI time is unchanged, and V1's memory leak is gone.
-- **V2 vs V1:** V2 mounts about 4× faster. Its layout lead comes from a faster Yoga build, not from Reactive. State is far faster in the worst cases, while single writes are slower.
-- **Reactive vs BSML:** Reactive is much faster when part of a big UI changes, and usually mounts faster. BSML is faster when many labels change text, and when moving things without layout.
+Against BSML, Reactive is much faster when one part of a large UI changes, since only that part is laid out again, and
+it usually mounts faster because it builds from code. Most rows where BSML comes out ahead are ones where it does less
+of the work, as the notes under them say.
 
-Each bar shows how many times better one side is, on a log scale. No bar means the difference is within noise. A * marks a row where the two sides don't do the same work or weren't measured the same way, with a note under its group. Don't compare PC numbers with Quest numbers.
+Each bar shows how many times better one side is, on a log scale. No bar means the difference is within noise. A * marks a row where the two sides don't do the same work or weren't measured the same way, with a note under its group.
 
 ## BeatLeader
 
@@ -87,9 +89,12 @@ V1 never frees the Yoga nodes of destroyed Images, Labels and list rows, or anyt
 
 Single writes, chains of maps and states writing each other are slower because V2 compares the value, queues the state and notifies on flush. That's also what makes bursts cheap, and they all stay under a millisecond.
 
-### Is the layout gain Reactive or Yoga?
+### Both on the same Yoga build
 
-V1 ships with an unoptimized `yoga.dll`, and V2 was measured on a Release build. With both on the Release build:
+V1 ships with an unoptimized `yoga.dll`, while V2 was measured on a Release build of it, so the comparison above mixes
+two things: changes in Reactive and a faster layout engine underneath it. To tell them apart, we swapped V1 onto the
+same Release build that V2 was measured with and ran the layout and mount benchmarks again. Everything else stayed as
+before, so any difference left between the two comes from Reactive itself:
 
 <PerfChart
     from="V1"
@@ -111,13 +116,13 @@ V1 ships with an unoptimized `yoga.dll`, and V2 was measured on a Release build.
     ]}
 />
 
-V1 catches up on layout and is up to 1.6× faster in some cases, but its mounts stay slow. So the layout gain comes from the Yoga build, and the mount gain from Reactive.
+With the engine the same on both sides, V1 catches up on layout and in some cases even runs up to 1.6× faster, so V2's
+layout lead over the shipped V1 comes from the Release build. Its mounts don't catch up, though, and V2 still mounts 3.4
+to 4.3× faster, so that gain is Reactive's own, from the reworked mounting.
 
 ## Reactive vs BSML
 
 BSML can't always do the same work, see [where the work differs](#where-the-work-differs).
-
-### PC
 
 <PerfChart
     from="BSML"
@@ -169,75 +174,19 @@ BSML can't always do the same work, see [where the work differs](#where-the-work
     ]}
 />
 
-### Quest 3
-
-<PerfChart
-    from="BSML"
-    to="Reactive"
-    groups={[
-        {"name": "Layout", "rows": [
-            {"label": "1000 items, one resizes*", "id": "layout-leaf", "values": "29.5 → 0.77 ms", "ratio": 38.1, "difference": "38× faster"},
-            {"label": "Tree of 1365 nodes, fixed-size leaves", "id": "layout-tree-fixed", "values": "73.0 → 3.63 ms", "ratio": 20.08, "difference": "20× faster"},
-            {"label": "Tree of 1365 growing nodes", "id": "layout-tree", "values": "74.4 → 38.0 ms", "ratio": 1.96, "difference": "2.0× faster"},
-            {"label": "300 labels, all change text**", "id": "layout-text-all", "values": "24.6 → 27.9 ms", "ratio": -1.13, "difference": "1.1× slower"},
-        ], "notes": [
-            "* BSML uses 40 rows of 25, because its layout groups can't wrap items of different sizes. Reactive wraps all 1000 in one container.",
-            "** BSML uses 30 rows of 10 and sets each text directly. Reactive wraps all 300 in one container and writes 300 bound states.",
-        ]},
-        {"name": "State", "rows": [
-            {"label": "500 labels showing one value*", "id": "state-labels", "values": "20.7 → 44.7 ms", "ratio": -2.16, "difference": "2.2× slower"},
-        ], "notes": [
-            "* Quest BSML has no change notifications, so the loop sets all 500 labels by hand. Its labels also sit in grid cells of a fixed size, so their text isn't measured for layout, while Reactive's are sized by their text.",
-        ]},
-        {"name": "Animation", "rows": [
-            {"label": "2000 Images, color*", "id": "anim-color-large", "values": "52.6 → 55.3 ms", "ratio": -1.05, "difference": "1.1× slower"},
-            {"label": "500 items, position only**", "id": "anim-position", "values": "0.09 → 1.50 ms", "ratio": -16.76, "difference": "17× slower"},
-        ], "notes": [
-            "* BSML has no animations, so a hand-written loop works out one value per frame and sets it on every item. Reactive runs a separate animation per item.",
-            "** The same loop, and BSML's items ignore layout, so moving them only writes their transforms. Reactive moves absolute flex items, so its layout runs every frame.",
-        ]},
-        {"name": "Lists", "rows": [
-            {"label": "Flat list of 2000 rows, idle", "id": "list-flat-idle", "values": "1.35 → 5.24 ms", "ratio": -3.89, "difference": "3.9× slower"},
-            {"label": "Flat list of 500 rows, all rebind*", "id": "list-flat-shuffle", "values": "126 → 87.7 ms", "ratio": 1.43, "difference": "1.4× faster"},
-        ], "notes": [
-            "* Quest BSML has no change notifications, so the loop sets all 1000 labels by hand. Reactive's list gets a new array of items.",
-        ]},
-        {"name": "Mounting", "rows": [
-            {"label": "1000 Images*", "id": "life-image", "values": "279 → 173 ms", "ratio": 1.61, "difference": "1.6× faster"},
-            {"label": "1000 Labels*", "id": "life-label", "values": "716 → 808 ms", "ratio": -1.13, "difference": "1.1× slower"},
-            {"label": "500 list rows*", "id": "life-row", "values": "1224 → 1033 ms", "ratio": 1.19, "difference": "1.2× faster"},
-            {"label": "Creating and destroying 50 rows per frame*", "id": "life-churn", "values": "129 → 112 ms", "ratio": 1.15, "difference": "1.2× faster"},
-        ], "notes": [
-            "* BSML parses its markup on every mount, where Reactive builds from code. BSML also places the first three in a grid of fixed cells rather than wrapping them, so its 1000 Labels aren't measured for layout.",
-        ]},
-        {"name": "Memory", "rows": [
-            {"label": "5000 animated boxes*", "id": "ram-animated", "values": "6.41 → 14.1 MB", "ratio": -2.21, "difference": "2.2× more"},
-            {"label": "2000 list rows", "id": "ram-rows", "values": "83.7 → 90.6 MB", "ratio": -1.08, "difference": "1.1× more"},
-        ], "notes": [
-            "* BSML has no animations, so its 5000 Images hold no animation state, while Reactive's hold one each.",
-        ]},
-    ]}
-/>
-
-`reactive-quest` has no `Table`, so the table row is missing here.
-
 ## How it was measured
 
-Measured on 2026-11-05 with the benchmarks in `Tests/UIHarness` of the BeatLeader repository. Its README has the commands.
+Everything was measured on 2026-11-05. UI time is how long the main thread spends on a frame beyond an idle one, taken
+as the median (p50), while state changes are timed directly. A mount is the median of every mount after the first,
+counting its first 6 frames, and memory is the managed heap while the benchmark is mounted.
 
-UI time is main thread time per frame over idle, as a p50. State benchmarks are timed directly. Mounts are the median mount after the first, including its first 6 frames. Memory is the managed heap with the benchmark mounted, plus the native heap on Quest.
-
-<details>
-<summary>Setup and caveats</summary>
+The machine, the versions and the rules are listed below:
 
 - **UI time window:** from the first `Update` to the end of `Canvas.willRenderCanvases`.
-- **Same:** the ranges over all rounds overlap, or the gap is under 5% or under the noise floor of an empty benchmark, which is 0.66 ms on V1 and V2, 1.95 ms on BSML and 0.03 ms on Quest.
+- **Same:** the ranges over all rounds overlap, or the gap is under 5% or under the noise floor of an empty benchmark, which is 0.66 ms on V1 and V2 and 1.95 ms on BSML.
 - **PC:** Beat Saber 1.44.0, Ryzen 7 5800H, RTX 3070 Laptop, in FPFC on a hidden desktop, which makes absolute numbers higher than usual. V1 is Reactive `859fe5d`, V2 is Reactive `56b3941` with a Release `yoga.dll`, BSML is 1.14.1. 3 rounds of V2 and BSML, 2 of V1. BeatLeader ran 2 rounds per version, and its main menu 5 sessions.
-- **Quest:** Beat Saber 1.40.8 on Quest 3 at 120 Hz, with no thermal throttling. `reactive-quest` `743aba6` and BSML 0.4.55, 3 rounds each.
-- **Same work:** V1, V2 and Quest Reactive end with matching layouts, apart from animations, tables and `state-subscribe`. BSML can't match them, so we compared screenshots of every benchmark instead.
+- **Same work:** V1 and V2 end with matching layouts, apart from animations, tables and `state-subscribe`. BSML can't match them, so we compared screenshots of every benchmark instead.
 - **Not covered:** PC VR, other machines and GPU cost.
-
-</details>
 
 ### Where the work differs
 
@@ -255,12 +204,11 @@ Each target is written the way its library is normally used: V2 the way BeatLead
 
 **BSML**
 
-- **No wrapping:** UGUI's layout groups can't wrap items of different sizes, so where one item changes size, BSML uses rows of a fixed length with the same number of items. Elsewhere a `grid` of fixed cells stands in for wrapping, so BSML's labels in `life-label` and `state-labels` aren't measured for layout, while Reactive's are. This helps BSML.
-- **No animations:** a hand-written loop works out one value per frame and sets it on every item, while Reactive runs one animation per item. That's about the least work a BSML view could do, not a library feature. In `anim-position`, BSML's items also ignore layout, so only their transforms move, while Reactive's absolute flex items run layout every frame. In `ram-animated`, BSML's Images hold no animation state. All of this helps BSML.
+- **No wrapping:** UGUI's layout groups can't wrap items of different sizes, so where one item changes size, BSML uses rows of a fixed length with the same number of items. Elsewhere a `grid` of fixed cells stands in for wrapping, so BSML's labels in `life-label` and `state-labels` aren't measured for layout, while Reactive's are, and BSML does less work there.
+- **No animations:** BSML has no animation system, so a hand-written loop works out one value per frame and sets it on every item, while Reactive runs one animation per item. In `anim-position`, BSML's items also ignore layout, so only their transforms move, while Reactive's absolute flex items run layout every frame. In `ram-animated`, BSML's Images hold no animation state. In all three, BSML does less work.
 - **Markup:** BSML parses markup on every mount, including all 50 rows per frame in `life-churn`. That's how BSML builds UI, so it's counted.
-- **Tables on PC:** `CustomCellListTableData.CellForIdx` creates a GameObject and parses the cell again whenever a row comes into view, instead of reusing one. That's BSML's own behavior, and Quest BSML reuses its cells.
+- **Tables:** `CustomCellListTableData.CellForIdx` creates a GameObject and parses the cell again whenever a row comes into view, instead of reusing one. That's BSML's own behavior.
 - **No list component:** in `list-flat-shuffle`, each row's bound object is updated in place, while Reactive's list gets a new array of items.
-- **No change notifications on Quest:** `state-labels` and `list-flat-shuffle` set the labels by hand there, which skips binding entirely. This helps BSML.
 - **No state system:** `state-labels` is the only state benchmark with a BSML version, and `ram-state` is left out.
 
 </details>
@@ -272,219 +220,219 @@ Each target is written the way its library is normally used: V2 the way BeatLead
 
 **UI time, p50.** Milliseconds per frame over idle. State benchmarks are timed directly.
 
-| Benchmark | Case | V1 | V2 | BSML | Quest Reactive | Quest BSML |
-| --- | --- | --- | --- | --- | --- | --- |
-| `layout-rect`<br />No layout engine: 1000 anchored Images, parent resized every frame | best | 16.9 | 18.8 | 17.5 | 29.1 | 28.6 |
-| `layout-idle`<br />1000 flex items mounted, nothing changes | best | 1.86 | 1.69 | ≈0 | 0.19 | 0.04 |
-| `layout-panels`<br />40 fixed-size panels of 25 items: one item changes size inside one panel every frame | best | 4.58 | 2.81 | 15.1 | 0.37 | 35.9 |
-| `layout-leaf`<br />Fixed-size flex: one of 1000 items changes size every frame | average | 13.3 | 3.67 | 12.5 | 0.77 | 29.5 |
-| `layout-root`<br />Fixed-size flex: 1000 items, the root resized every frame | worst | 13.4 | 3.78 | 3.99 | 2.54 | 7.58 |
-| `layout-tree-fixed`<br />The same tree with fixed-size leaves, so nothing is measured, the root resized every frame | worst | 20.3 | 5.81 | 34.9 | 3.63 | 73.0 |
-| `layout-percent`<br />Percent-sized and growing flex: 500 items, the root resized every frame | average | 18.4 | 11.5 | 13.7 | 17.3 | 28.0 |
-| `layout-tree`<br />Tree of nested growing flex containers (1365 nodes), the root resized every frame | worst | 44.8 | 25.0 | 35.7 | 38.0 | 74.4 |
-| `layout-text-one`<br />Text-measured flex: one of 300 labels changes its text every frame | average | 3.23 | 1.47 | 4.47 | 0.48 | 8.78 |
-| `layout-rows`<br />Column of 200 list rows (800 nodes), the root resized every frame | average | 29.5 | 20.0 | 15.3 | 21.9 | 30.2 |
-| `layout-text-all`<br />Text-measured flex: all 300 labels change their text every frame | worst | 42.2 | 35.1 | 20.1 | 27.9 | 24.6 |
-| `layout-tree-text`<br />Tree of content-sized containers with text leaves (364 nodes): text and root change every frame | worst | 57.0 | 19.2 | 15.4 | 19.8 | 23.8 |
-| `layout-deep`<br />128 nested flex containers, the innermost item changes size every frame | worst | 19.7 | 2.64 | 5.93 | 1.91 | 12.7 |
-| `layout-absolute`<br />500 absolutely positioned flex items all move every frame | average | 5.22 | 3.46 | ≈0 | 0.71 | ≈0 |
-| `layout-toggle`<br />Half of 200 list rows hide and show every frame | worst | 17.7 | 14.7 | 19.1 | 8.90 | 22.3 |
-| `state-labels`<br />One write per frame updates the text of 500 bound labels through a map | worst | 70.6 | 54.9 | 19.9 | 44.7 | 20.7 |
-| `state-single`<br />One state, one callback, one write per frame | best | 2.0 µs | 7.4 µs | – | 6.0 µs | – |
-| `state-same-value`<br />1000 writes of the same value per frame, one callback | best | 11.9 µs | 8.8 µs | – | 3.1 µs | – |
-| `state-fanout`<br />One write per frame reaches 1000 callbacks | average | 74.1 µs | 38.6 µs | – | 25.1 µs | – |
-| `state-chain`<br />Callbacks in callbacks: a chain of 100 maps | average | 10.7 µs | 30.1 µs | – | 29.9 µs | – |
-| `state-burst`<br />1000 writes per frame with 100 callbacks | worst | 730 µs | 29.3 µs | – | 14.3 µs | – |
-| `state-reentrant`<br />Callbacks in callbacks: two states write each other 200 times per frame | worst | 17.6 µs | 53.2 µs | – | 41.3 µs | – |
-| `state-cascade`<br />Callbacks in callbacks: each callback writes four more states, six levels deep (5461 writes) | worst | 304 µs | 667 µs | – | 384 µs | – |
-| `state-diamond`<br />Callbacks in callbacks: 14 stacked diamonds, where one write reaches the end by 16384 paths | worst | 1.25 ms | 22.8 µs | – | 20.8 µs | – |
-| `state-diamond-deep`<br />Callbacks in callbacks: 18 stacked diamonds, where one write reaches the end by 262144 paths | worst | 20.0 ms | 26.7 µs | – | 24.7 µs | – |
-| `state-subscribe`<br />1000 subscribes and unsubscribes per frame on a state with 1000 callbacks | worst | 5.78 ms | 82.2 µs | – | 4.06 ms | – |
-| `anim-color-small`<br />100 Images animating their color | best | 0.69 | 1.19 | ≈0 | 2.64 | 2.34 |
-| `anim-position`<br />500 absolute items animating their position | average | 5.28 | 3.15 | ≈0 | 1.50 | 0.09 |
-| `anim-color-large`<br />2000 Images animating their color, so no layout | average | 33.9 | 31.9 | 30.5 | 55.3 | 52.6 |
-| `anim-size`<br />200 flex items animating their size, so layout every frame | worst | 5.48 | 4.30 | 5.19 | 7.78 | 11.9 |
-| `anim-retarget`<br />1000 color animations restarted every frame | worst | 17.7 | 16.3 | 15.8 | 28.5 | 25.9 |
-| `anim-storm`<br />Nested flex dashboard: 64 panels of 4 boxes animating size and color, plus a label changing text every frame | worst | 25.4 | 12.6 | 13.8 | 18.7 | 26.9 |
-| `list-table-idle`<br />Virtualized table with 100000 items, nothing changes | best | 0.98 | ≈0 | ≈0 | – | 0.23 |
-| `list-table-scroll`<br />Virtualized table with 100000 items, scrolled by a row every frame | average | 8.34 | 8.07 | 6.63 | – | 1.08 |
-| `list-table-jump`<br />Virtualized table with 100000 items, jumping far every frame so every cell rebinds | worst | 7.74 | 7.78 | 126 | – | 14.6 |
-| `list-table-refresh`<br />Virtualized table with 10000 items, replaced by a filtered list every frame | worst | 9.74 | 8.44 | 119 | – | 13.8 |
-| `list-flat-idle`<br />Flat list of 2000 rows (8000 nodes), nothing changes | average | 27.3 | 21.3 | 15.2 | 5.24 | 1.35 |
-| `list-flat-shuffle`<br />Flat list of 500 rows, all shifted by one every frame so every row rebinds | worst | 275 | 107 | 89.8 | 87.7 | 126 |
-| `list-flat-grow`<br />Flat list growing by 10 rows every frame | worst | 91.7 | 14.4 | 37.3 | 24.4 | 49.6 |
-| `life-layout-noflex`<br />Mount and destroy 1000 empty Layouts in a parent without a layout controller | best | 1.27 | ≈0 | ≈0 | 0.25 | -0.09 |
-| `life-layout`<br />Mount and destroy 1000 empty Layouts | best | 1.79 | ≈0 | ≈0 | 0.22 | -0.09 |
-| `life-image`<br />Mount and destroy 1000 Images | average | 5.08 | 1.21 | ≈0 | 0.21 | -0.10 |
-| `life-label`<br />Mount and destroy 1000 Labels | average | 1.80 | 1.97 | ≈0 | 0.51 | 0.31 |
-| `life-row`<br />Mount and destroy 500 list rows (background, icon, two labels) | worst | 4.33 | 5.13 | 2.16 | 1.06 | 0.34 |
-| `life-append`<br />Mount and destroy 4000 empty Layouts in one container, to show how appending scales against life-layout | worst | 4.56 | 3.16 | 6.28 | 0.88 | 0.05 |
-| `life-churn`<br />Create and destroy 50 rows every frame | worst | 124 | 31.0 | 121 | 112 | 129 |
-| `ram-state`<br />100000 states with one callback each | best | 2.28 | -1.07 | – | -0.16 | – |
-| `ram-animated`<br />5000 boxes with a color animation each | average | 11.0 | 9.81 | 3.55 | 1.01 | 0.36 |
-| `ram-rows`<br />2000 list rows (8000 nodes) | worst | 24.2 | 19.6 | 11.4 | 4.36 | 1.24 |
+| Benchmark | Case | V1 | V2 | BSML |
+| --- | --- | --- | --- | --- |
+| `layout-rect`<br />No layout engine: 1000 anchored Images, parent resized every frame | best | 16.9 | 18.8 | 17.5 |
+| `layout-idle`<br />1000 flex items mounted, nothing changes | best | 1.86 | 1.69 | ≈0 |
+| `layout-panels`<br />40 fixed-size panels of 25 items: one item changes size inside one panel every frame | best | 4.58 | 2.81 | 15.1 |
+| `layout-leaf`<br />Fixed-size flex: one of 1000 items changes size every frame | average | 13.3 | 3.67 | 12.5 |
+| `layout-root`<br />Fixed-size flex: 1000 items, the root resized every frame | worst | 13.4 | 3.78 | 3.99 |
+| `layout-tree-fixed`<br />The same tree with fixed-size leaves, so nothing is measured, the root resized every frame | worst | 20.3 | 5.81 | 34.9 |
+| `layout-percent`<br />Percent-sized and growing flex: 500 items, the root resized every frame | average | 18.4 | 11.5 | 13.7 |
+| `layout-tree`<br />Tree of nested growing flex containers (1365 nodes), the root resized every frame | worst | 44.8 | 25.0 | 35.7 |
+| `layout-text-one`<br />Text-measured flex: one of 300 labels changes its text every frame | average | 3.23 | 1.47 | 4.47 |
+| `layout-rows`<br />Column of 200 list rows (800 nodes), the root resized every frame | average | 29.5 | 20.0 | 15.3 |
+| `layout-text-all`<br />Text-measured flex: all 300 labels change their text every frame | worst | 42.2 | 35.1 | 20.1 |
+| `layout-tree-text`<br />Tree of content-sized containers with text leaves (364 nodes): text and root change every frame | worst | 57.0 | 19.2 | 15.4 |
+| `layout-deep`<br />128 nested flex containers, the innermost item changes size every frame | worst | 19.7 | 2.64 | 5.93 |
+| `layout-absolute`<br />500 absolutely positioned flex items all move every frame | average | 5.22 | 3.46 | ≈0 |
+| `layout-toggle`<br />Half of 200 list rows hide and show every frame | worst | 17.7 | 14.7 | 19.1 |
+| `state-labels`<br />One write per frame updates the text of 500 bound labels through a map | worst | 70.6 | 54.9 | 19.9 |
+| `state-single`<br />One state, one callback, one write per frame | best | 2.0 µs | 7.4 µs | – |
+| `state-same-value`<br />1000 writes of the same value per frame, one callback | best | 11.9 µs | 8.8 µs | – |
+| `state-fanout`<br />One write per frame reaches 1000 callbacks | average | 74.1 µs | 38.6 µs | – |
+| `state-chain`<br />Callbacks in callbacks: a chain of 100 maps | average | 10.7 µs | 30.1 µs | – |
+| `state-burst`<br />1000 writes per frame with 100 callbacks | worst | 730 µs | 29.3 µs | – |
+| `state-reentrant`<br />Callbacks in callbacks: two states write each other 200 times per frame | worst | 17.6 µs | 53.2 µs | – |
+| `state-cascade`<br />Callbacks in callbacks: each callback writes four more states, six levels deep (5461 writes) | worst | 304 µs | 667 µs | – |
+| `state-diamond`<br />Callbacks in callbacks: 14 stacked diamonds, where one write reaches the end by 16384 paths | worst | 1.25 ms | 22.8 µs | – |
+| `state-diamond-deep`<br />Callbacks in callbacks: 18 stacked diamonds, where one write reaches the end by 262144 paths | worst | 20.0 ms | 26.7 µs | – |
+| `state-subscribe`<br />1000 subscribes and unsubscribes per frame on a state with 1000 callbacks | worst | 5.78 ms | 82.2 µs | – |
+| `anim-color-small`<br />100 Images animating their color | best | 0.69 | 1.19 | ≈0 |
+| `anim-position`<br />500 absolute items animating their position | average | 5.28 | 3.15 | ≈0 |
+| `anim-color-large`<br />2000 Images animating their color, so no layout | average | 33.9 | 31.9 | 30.5 |
+| `anim-size`<br />200 flex items animating their size, so layout every frame | worst | 5.48 | 4.30 | 5.19 |
+| `anim-retarget`<br />1000 color animations restarted every frame | worst | 17.7 | 16.3 | 15.8 |
+| `anim-storm`<br />Nested flex dashboard: 64 panels of 4 boxes animating size and color, plus a label changing text every frame | worst | 25.4 | 12.6 | 13.8 |
+| `list-table-idle`<br />Virtualized table with 100000 items, nothing changes | best | 0.98 | ≈0 | ≈0 |
+| `list-table-scroll`<br />Virtualized table with 100000 items, scrolled by a row every frame | average | 8.34 | 8.07 | 6.63 |
+| `list-table-jump`<br />Virtualized table with 100000 items, jumping far every frame so every cell rebinds | worst | 7.74 | 7.78 | 126 |
+| `list-table-refresh`<br />Virtualized table with 10000 items, replaced by a filtered list every frame | worst | 9.74 | 8.44 | 119 |
+| `list-flat-idle`<br />Flat list of 2000 rows (8000 nodes), nothing changes | average | 27.3 | 21.3 | 15.2 |
+| `list-flat-shuffle`<br />Flat list of 500 rows, all shifted by one every frame so every row rebinds | worst | 275 | 107 | 89.8 |
+| `list-flat-grow`<br />Flat list growing by 10 rows every frame | worst | 91.7 | 14.4 | 37.3 |
+| `life-layout-noflex`<br />Mount and destroy 1000 empty Layouts in a parent without a layout controller | best | 1.27 | ≈0 | ≈0 |
+| `life-layout`<br />Mount and destroy 1000 empty Layouts | best | 1.79 | ≈0 | ≈0 |
+| `life-image`<br />Mount and destroy 1000 Images | average | 5.08 | 1.21 | ≈0 |
+| `life-label`<br />Mount and destroy 1000 Labels | average | 1.80 | 1.97 | ≈0 |
+| `life-row`<br />Mount and destroy 500 list rows (background, icon, two labels) | worst | 4.33 | 5.13 | 2.16 |
+| `life-append`<br />Mount and destroy 4000 empty Layouts in one container, to show how appending scales against life-layout | worst | 4.56 | 3.16 | 6.28 |
+| `life-churn`<br />Create and destroy 50 rows every frame | worst | 124 | 31.0 | 121 |
+| `ram-state`<br />100000 states with one callback each | best | 2.28 | -1.07 | – |
+| `ram-animated`<br />5000 boxes with a color animation each | average | 11.0 | 9.81 | 3.55 |
+| `ram-rows`<br />2000 list rows (8000 nodes) | worst | 24.2 | 19.6 | 11.4 |
 
 **UI time, p99.**
 
-| Benchmark | V1 | V2 | BSML | Quest Reactive | Quest BSML |
-| --- | --- | --- | --- | --- | --- |
-| `layout-rect` | 29.6 | 30.0 | 29.7 | 31.5 | 30.3 |
-| `layout-idle` | 7.18 | 6.77 | 7.20 | 1.08 | 0.50 |
-| `layout-panels` | 14.8 | 10.2 | 29.3 | 0.90 | 38.6 |
-| `layout-leaf` | 21.4 | 8.86 | 36.7 | 1.18 | 32.4 |
-| `layout-root` | 24.7 | 11.4 | 14.1 | 3.57 | 9.02 |
-| `layout-tree-fixed` | 33.8 | 13.6 | 57.7 | 4.66 | 77.9 |
-| `layout-percent` | 29.4 | 19.8 | 26.7 | 19.5 | 30.4 |
-| `layout-tree` | 63.5 | 42.7 | 58.6 | 40.8 | 78.8 |
-| `layout-text-one` | 10.3 | 6.60 | 12.6 | 1.10 | 10.9 |
-| `layout-rows` | 45.4 | 33.4 | 28.4 | 24.7 | 32.4 |
-| `layout-text-all` | 60.5 | 54.2 | 33.5 | 29.9 | 27.4 |
-| `layout-tree-text` | 85.3 | 33.4 | 26.9 | 22.5 | 26.8 |
-| `layout-deep` | 29.9 | 7.53 | 11.6 | 3.19 | 14.1 |
-| `layout-absolute` | 12.4 | 10.8 | 5.77 | 1.36 | 0.48 |
-| `layout-toggle` | 46.1 | 33.5 | 42.7 | 31.8 | 50.1 |
-| `state-labels` | 101 | 88.4 | 34.0 | 64.3 | 26.9 |
-| `state-single` | 3.9 µs | 13.8 µs | – | 10.5 µs | – |
-| `state-same-value` | 20.0 µs | 15.1 µs | – | 7.2 µs | – |
-| `state-fanout` | 180 µs | 71.0 µs | – | 55.9 µs | – |
-| `state-chain` | 19.0 µs | 70.3 µs | – | 76.2 µs | – |
-| `state-burst` | 1.12 ms | 44.3 µs | – | 31.7 µs | – |
-| `state-reentrant` | 42.9 µs | 102 µs | – | 83.6 µs | – |
-| `state-cascade` | 606 µs | 1.21 ms | – | 533 µs | – |
-| `state-diamond` | 1.60 ms | 38.0 µs | – | 68.2 µs | – |
-| `state-diamond-deep` | 25.0 ms | 42.7 µs | – | 78.4 µs | – |
-| `state-subscribe` | 268 ms | 134 µs | – | 5.01 ms | – |
-| `anim-color-small` | 5.27 | 6.40 | 6.01 | 3.69 | 4.00 |
-| `anim-position` | 12.6 | 10.6 | 5.36 | 2.61 | 1.28 |
-| `anim-color-large` | 52.0 | 52.0 | 48.0 | 60.3 | 57.4 |
-| `anim-size` | 13.1 | 12.0 | 12.2 | 12.8 | 15.9 |
-| `anim-retarget` | 28.9 | 28.5 | 28.1 | 30.4 | 28.4 |
-| `anim-storm` | 37.9 | 24.8 | 24.8 | 26.3 | 29.3 |
-| `list-table-idle` | 5.65 | 4.43 | 5.19 | – | 0.62 |
-| `list-table-scroll` | 16.5 | 17.9 | 16.8 | – | 1.74 |
-| `list-table-jump` | 15.7 | 15.9 | 392 | – | 16.6 |
-| `list-table-refresh` | 15.2 | 17.9 | 411 | – | 15.9 |
-| `list-flat-idle` | 176 | 34.4 | 27.1 | 6.33 | 2.70 |
-| `list-flat-shuffle` | 468 | 149 | 143 | 93.2 | 131 |
-| `list-flat-grow` | 213 | 64.8 | 74.3 | 69.6 | 73.8 |
-| `life-layout-noflex` | 3.58 | 3.25 | 2.13 | 0.45 | 0.18 |
-| `life-layout` | 2.94 | 2.61 | 2.49 | 0.56 | 0.12 |
-| `life-image` | 6.81 | 3.35 | 4.00 | 0.44 | 0.11 |
-| `life-label` | 5.19 | 5.91 | 3.61 | 1.11 | 0.59 |
-| `life-row` | 8.62 | 9.51 | 6.97 | 1.64 | 0.71 |
-| `life-append` | 9.97 | 6.44 | 11.1 | 1.05 | 0.24 |
-| `life-churn` | 385 | 151 | 299 | 136 | 154 |
-| `ram-state` | 3.92 | 0.66 | – | 0.09 | – |
-| `ram-animated` | 12.3 | 14.8 | 6.40 | 1.44 | 0.49 |
-| `ram-rows` | 45.5 | 28.4 | 18.3 | 4.94 | 2.21 |
+| Benchmark | V1 | V2 | BSML |
+| --- | --- | --- | --- |
+| `layout-rect` | 29.6 | 30.0 | 29.7 |
+| `layout-idle` | 7.18 | 6.77 | 7.20 |
+| `layout-panels` | 14.8 | 10.2 | 29.3 |
+| `layout-leaf` | 21.4 | 8.86 | 36.7 |
+| `layout-root` | 24.7 | 11.4 | 14.1 |
+| `layout-tree-fixed` | 33.8 | 13.6 | 57.7 |
+| `layout-percent` | 29.4 | 19.8 | 26.7 |
+| `layout-tree` | 63.5 | 42.7 | 58.6 |
+| `layout-text-one` | 10.3 | 6.60 | 12.6 |
+| `layout-rows` | 45.4 | 33.4 | 28.4 |
+| `layout-text-all` | 60.5 | 54.2 | 33.5 |
+| `layout-tree-text` | 85.3 | 33.4 | 26.9 |
+| `layout-deep` | 29.9 | 7.53 | 11.6 |
+| `layout-absolute` | 12.4 | 10.8 | 5.77 |
+| `layout-toggle` | 46.1 | 33.5 | 42.7 |
+| `state-labels` | 101 | 88.4 | 34.0 |
+| `state-single` | 3.9 µs | 13.8 µs | – |
+| `state-same-value` | 20.0 µs | 15.1 µs | – |
+| `state-fanout` | 180 µs | 71.0 µs | – |
+| `state-chain` | 19.0 µs | 70.3 µs | – |
+| `state-burst` | 1.12 ms | 44.3 µs | – |
+| `state-reentrant` | 42.9 µs | 102 µs | – |
+| `state-cascade` | 606 µs | 1.21 ms | – |
+| `state-diamond` | 1.60 ms | 38.0 µs | – |
+| `state-diamond-deep` | 25.0 ms | 42.7 µs | – |
+| `state-subscribe` | 268 ms | 134 µs | – |
+| `anim-color-small` | 5.27 | 6.40 | 6.01 |
+| `anim-position` | 12.6 | 10.6 | 5.36 |
+| `anim-color-large` | 52.0 | 52.0 | 48.0 |
+| `anim-size` | 13.1 | 12.0 | 12.2 |
+| `anim-retarget` | 28.9 | 28.5 | 28.1 |
+| `anim-storm` | 37.9 | 24.8 | 24.8 |
+| `list-table-idle` | 5.65 | 4.43 | 5.19 |
+| `list-table-scroll` | 16.5 | 17.9 | 16.8 |
+| `list-table-jump` | 15.7 | 15.9 | 392 |
+| `list-table-refresh` | 15.2 | 17.9 | 411 |
+| `list-flat-idle` | 176 | 34.4 | 27.1 |
+| `list-flat-shuffle` | 468 | 149 | 143 |
+| `list-flat-grow` | 213 | 64.8 | 74.3 |
+| `life-layout-noflex` | 3.58 | 3.25 | 2.13 |
+| `life-layout` | 2.94 | 2.61 | 2.49 |
+| `life-image` | 6.81 | 3.35 | 4.00 |
+| `life-label` | 5.19 | 5.91 | 3.61 |
+| `life-row` | 8.62 | 9.51 | 6.97 |
+| `life-append` | 9.97 | 6.44 | 11.1 |
+| `life-churn` | 385 | 151 | 299 |
+| `ram-state` | 3.92 | 0.66 | – |
+| `ram-animated` | 12.3 | 14.8 | 6.40 |
+| `ram-rows` | 45.5 | 28.4 | 18.3 |
 
 **Mount, ms.**
 
-| Benchmark | V1 | V2 | BSML | Quest Reactive | Quest BSML |
-| --- | --- | --- | --- | --- | --- |
-| `layout-rect` | 79.5 | 66.2 | 582 | 368 | 579 |
-| `layout-idle` | 765 | 70.0 | 551 | 172 | 279 |
-| `layout-panels` | 1453 | 92.2 | 765 | 186 | 451 |
-| `layout-leaf` | 987 | 98.7 | 600 | 178 | 363 |
-| `layout-root` | 718 | 74.2 | 705 | 176 | 267 |
-| `layout-tree-fixed` | 1414 | 138 | 745 | 249 | 496 |
-| `layout-percent` | 477 | 43.3 | 231 | 89.8 | 174 |
-| `layout-tree` | 1158 | 120 | 813 | 262 | 500 |
-| `layout-text-one` | 530 | 95.4 | 170 | 251 | 259 |
-| `layout-rows` | 820 | 130 | 663 | 434 | 538 |
-| `layout-text-all` | 705 | 83.4 | 181 | 242 | 247 |
-| `layout-tree-text` | 457 | 62.1 | 210 | 237 | 254 |
-| `layout-deep` | 35.3 | 14.8 | 432 | 21.2 | 1483 |
-| `layout-absolute` | 1126 | 36.8 | 241 | 90.9 | 175 |
-| `layout-toggle` | 1790 | 115 | 562 | 420 | 536 |
-| `state-labels` | 1303 | 118 | 237 | 439 | 330 |
-| `state-single` | 11.8 | 2.06 | – | 0.68 | – |
-| `state-same-value` | 3.28 | 3.72 | – | 0.43 | – |
-| `state-fanout` | 3.57 | 16.7 | – | 0.76 | – |
-| `state-chain` | 11.4 | 1.99 | – | 0.27 | – |
-| `state-burst` | 3.36 | 2.99 | – | 0.28 | – |
-| `state-reentrant` | 6.67 | 4.32 | – | 0.23 | – |
-| `state-cascade` | 8.00 | 5.92 | – | 2.79 | – |
-| `state-diamond` | 13.8 | 5.59 | – | 0.84 | – |
-| `state-diamond-deep` | 5.50 | 10.8 | – | 0.50 | – |
-| `state-subscribe` | 7.78 | 2.10 | – | 0.48 | – |
-| `anim-color-small` | 357 | 15.6 | 39.1 | 24.4 | 31.2 |
-| `anim-position` | 681 | 45.4 | 316 | 106 | 171 |
-| `anim-color-large` | 2882 | 167 | 1094 | 400 | 564 |
-| `anim-size` | 272 | 17.6 | 95.1 | 42.4 | 72.5 |
-| `anim-retarget` | 1323 | 88.4 | 554 | 202 | 282 |
-| `anim-storm` | 568 | 62.3 | 259 | 135 | 217 |
-| `list-table-idle` | 275 | 35.8 | 147 | – | 232 |
-| `list-table-scroll` | 258 | 30.4 | 130 | – | 218 |
-| `list-table-jump` | 206 | 26.2 | 120 | – | 203 |
-| `list-table-refresh` | 229 | 33.8 | 110 | – | 116 |
-| `list-flat-idle` | 4640 | 1823 | 6153 | 4867 | 5867 |
-| `list-flat-shuffle` | 952 | 407 | 1563 | 1110 | 1334 |
-| `list-flat-grow` | 17.9 | 0.17 | 4.39 | 0.57 | 0.89 |
-| `life-layout-noflex` | 28.7 | 26.0 | 527 | 57.9 | 122 |
-| `life-layout` | 40.9 | 25.8 | 651 | 61.7 | 234 |
-| `life-image` | 320 | 71.8 | 556 | 173 | 279 |
-| `life-label` | 865 | 224 | 623 | 808 | 716 |
-| `life-row` | 1104 | 291 | 1444 | 1033 | 1224 |
-| `life-append` | 254 | 102 | 2238 | 258 | 1046 |
-| `life-churn` | 7.93 | 5.80 | 9.01 | 0.55 | 1.73 |
-| `ram-state` | 180 | 23.5 | – | 50.9 | – |
-| `ram-animated` | 27266 | 441 | 2672 | 1006 | 1505 |
-| `ram-rows` | 3397 | 1412 | 5865 | 4341 | 5703 |
+| Benchmark | V1 | V2 | BSML |
+| --- | --- | --- | --- |
+| `layout-rect` | 79.5 | 66.2 | 582 |
+| `layout-idle` | 765 | 70.0 | 551 |
+| `layout-panels` | 1453 | 92.2 | 765 |
+| `layout-leaf` | 987 | 98.7 | 600 |
+| `layout-root` | 718 | 74.2 | 705 |
+| `layout-tree-fixed` | 1414 | 138 | 745 |
+| `layout-percent` | 477 | 43.3 | 231 |
+| `layout-tree` | 1158 | 120 | 813 |
+| `layout-text-one` | 530 | 95.4 | 170 |
+| `layout-rows` | 820 | 130 | 663 |
+| `layout-text-all` | 705 | 83.4 | 181 |
+| `layout-tree-text` | 457 | 62.1 | 210 |
+| `layout-deep` | 35.3 | 14.8 | 432 |
+| `layout-absolute` | 1126 | 36.8 | 241 |
+| `layout-toggle` | 1790 | 115 | 562 |
+| `state-labels` | 1303 | 118 | 237 |
+| `state-single` | 11.8 | 2.06 | – |
+| `state-same-value` | 3.28 | 3.72 | – |
+| `state-fanout` | 3.57 | 16.7 | – |
+| `state-chain` | 11.4 | 1.99 | – |
+| `state-burst` | 3.36 | 2.99 | – |
+| `state-reentrant` | 6.67 | 4.32 | – |
+| `state-cascade` | 8.00 | 5.92 | – |
+| `state-diamond` | 13.8 | 5.59 | – |
+| `state-diamond-deep` | 5.50 | 10.8 | – |
+| `state-subscribe` | 7.78 | 2.10 | – |
+| `anim-color-small` | 357 | 15.6 | 39.1 |
+| `anim-position` | 681 | 45.4 | 316 |
+| `anim-color-large` | 2882 | 167 | 1094 |
+| `anim-size` | 272 | 17.6 | 95.1 |
+| `anim-retarget` | 1323 | 88.4 | 554 |
+| `anim-storm` | 568 | 62.3 | 259 |
+| `list-table-idle` | 275 | 35.8 | 147 |
+| `list-table-scroll` | 258 | 30.4 | 130 |
+| `list-table-jump` | 206 | 26.2 | 120 |
+| `list-table-refresh` | 229 | 33.8 | 110 |
+| `list-flat-idle` | 4640 | 1823 | 6153 |
+| `list-flat-shuffle` | 952 | 407 | 1563 |
+| `list-flat-grow` | 17.9 | 0.17 | 4.39 |
+| `life-layout-noflex` | 28.7 | 26.0 | 527 |
+| `life-layout` | 40.9 | 25.8 | 651 |
+| `life-image` | 320 | 71.8 | 556 |
+| `life-label` | 865 | 224 | 623 |
+| `life-row` | 1104 | 291 | 1444 |
+| `life-append` | 254 | 102 | 2238 |
+| `life-churn` | 7.93 | 5.80 | 9.01 |
+| `ram-state` | 180 | 23.5 | – |
+| `ram-animated` | 27266 | 441 | 2672 |
+| `ram-rows` | 3397 | 1412 | 5865 |
 
 **Memory while mounted, MB.**
 
-| Benchmark | V1 | V2 | BSML | Quest Reactive | Quest BSML |
-| --- | --- | --- | --- | --- | --- |
-| `layout-rect` | 0.82 | 0.21 | 3.70 | 0.94 | 1.11 |
-| `layout-idle` | 1.93 | 0.48 | 3.79 | 1.19 | 0.40 |
-| `layout-panels` | 1.76 | 0.20 | 4.07 | 1.66 | 0.99 |
-| `layout-leaf` | 1.95 | 0.46 | 3.79 | 1.62 | 0.81 |
-| `layout-root` | 1.90 | 0.41 | 3.70 | 1.61 | 0.76 |
-| `layout-tree-fixed` | 2.57 | 0.54 | 4.19 | 2.10 | 1.23 |
-| `layout-percent` | 0.50 | ≈0 | 0.72 | 0.77 | 0.39 |
-| `layout-tree` | 2.72 | 0.55 | 4.23 | 2.11 | 1.22 |
-| `layout-text-one` | 7.29 | 6.14 | 8.54 | ≈0 | 7.70 |
-| `layout-rows` | 8.02 | 4.95 | 12.7 | 7.78 | 7.05 |
-| `layout-text-all` | 7.41 | 6.06 | 8.54 | 7.98 | 7.71 |
-| `layout-tree-text` | 3.38 | 1.85 | 4.38 | 3.51 | 3.26 |
-| `layout-deep` | ≈0 | ≈0 | ≈0 | 0.15 | 0.16 |
-| `layout-absolute` | 0.16 | ≈0 | 0.52 | ≈0 | 0.60 |
-| `layout-toggle` | 7.90 | 4.97 | 12.8 | 7.74 | 7.07 |
-| `state-labels` | 8.01 | 10.5 | 10.2 | 13.5 | 5.85 |
-| `state-single` | ≈0 | ≈0 | – | ≈0 | – |
-| `state-same-value` | ≈0 | ≈0 | – | ≈0 | – |
-| `state-fanout` | ≈0 | ≈0 | – | 0.19 | – |
-| `state-chain` | ≈0 | ≈0 | – | ≈0 | – |
-| `state-burst` | ≈0 | ≈0 | – | ≈0 | – |
-| `state-reentrant` | ≈0 | ≈0 | – | ≈0 | – |
-| `state-cascade` | ≈0 | ≈0 | – | 1.01 | – |
-| `state-diamond` | ≈0 | ≈0 | – | ≈0 | – |
-| `state-diamond-deep` | ≈0 | ≈0 | – | ≈0 | – |
-| `state-subscribe` | ≈0 | ≈0 | – | 0.19 | – |
-| `anim-color-small` | ≈0 | ≈0 | ≈0 | 0.22 | 0.11 |
-| `anim-position` | 0.10 | ≈0 | 0.55 | 1.35 | 0.54 |
-| `anim-color-large` | 5.89 | 1.45 | 4.45 | 5.21 | 2.03 |
-| `anim-size` | ≈0 | ≈0 | ≈0 | 0.51 | 0.20 |
-| `anim-retarget` | 1.87 | 0.10 | 3.54 | 2.45 | 0.80 |
-| `anim-storm` | 0.63 | ≈0 | 1.62 | 1.87 | 1.15 |
-| `list-table-idle` | 1.03 | 0.55 | 4.46 | – | 18.5 |
-| `list-table-scroll` | 1.17 | 0.47 | 4.44 | – | 19.1 |
-| `list-table-jump` | 1.13 | 0.45 | 4.43 | – | 18.1 |
-| `list-table-refresh` | 0.33 | 0.12 | 1.45 | – | 4.90 |
-| `list-flat-idle` | 125 | 117 | 166 | 127 | 116 |
-| `list-flat-shuffle` | 27.3 | 25.1 | 56.0 | 31.5 | 27.5 |
-| `list-flat-grow` | ≈0 | ≈0 | ≈0 | ≈0 | ≈0 |
-| `life-layout-noflex` | 0.52 | 0.43 | 1.45 | 1.13 | 0.17 |
-| `life-layout` | 0.70 | 0.48 | 6.18 | 1.12 | 0.42 |
-| `life-image` | 1.99 | 0.91 | 4.02 | 1.65 | 0.80 |
-| `life-label` | 22.0 | 19.1 | 21.5 | 23.6 | 14.1 |
-| `life-row` | 20.6 | 15.2 | 27.2 | 21.1 | 18.7 |
-| `life-append` | 5.59 | 3.42 | 11.1 | 4.71 | 2.15 |
-| `life-churn` | ≈0 | ≈0 | ≈0 | ≈0 | ≈0 |
-| `ram-state` | 18.2 | 24.2 | – | 27.5 | – |
-| `ram-animated` | 17.0 | 6.79 | 21.0 | 14.1 | 6.41 |
-| `ram-rows` | 82.5 | 73.4 | 120 | 90.6 | 83.7 |
+| Benchmark | V1 | V2 | BSML |
+| --- | --- | --- | --- |
+| `layout-rect` | 0.82 | 0.21 | 3.70 |
+| `layout-idle` | 1.93 | 0.48 | 3.79 |
+| `layout-panels` | 1.76 | 0.20 | 4.07 |
+| `layout-leaf` | 1.95 | 0.46 | 3.79 |
+| `layout-root` | 1.90 | 0.41 | 3.70 |
+| `layout-tree-fixed` | 2.57 | 0.54 | 4.19 |
+| `layout-percent` | 0.50 | ≈0 | 0.72 |
+| `layout-tree` | 2.72 | 0.55 | 4.23 |
+| `layout-text-one` | 7.29 | 6.14 | 8.54 |
+| `layout-rows` | 8.02 | 4.95 | 12.7 |
+| `layout-text-all` | 7.41 | 6.06 | 8.54 |
+| `layout-tree-text` | 3.38 | 1.85 | 4.38 |
+| `layout-deep` | ≈0 | ≈0 | ≈0 |
+| `layout-absolute` | 0.16 | ≈0 | 0.52 |
+| `layout-toggle` | 7.90 | 4.97 | 12.8 |
+| `state-labels` | 8.01 | 10.5 | 10.2 |
+| `state-single` | ≈0 | ≈0 | – |
+| `state-same-value` | ≈0 | ≈0 | – |
+| `state-fanout` | ≈0 | ≈0 | – |
+| `state-chain` | ≈0 | ≈0 | – |
+| `state-burst` | ≈0 | ≈0 | – |
+| `state-reentrant` | ≈0 | ≈0 | – |
+| `state-cascade` | ≈0 | ≈0 | – |
+| `state-diamond` | ≈0 | ≈0 | – |
+| `state-diamond-deep` | ≈0 | ≈0 | – |
+| `state-subscribe` | ≈0 | ≈0 | – |
+| `anim-color-small` | ≈0 | ≈0 | ≈0 |
+| `anim-position` | 0.10 | ≈0 | 0.55 |
+| `anim-color-large` | 5.89 | 1.45 | 4.45 |
+| `anim-size` | ≈0 | ≈0 | ≈0 |
+| `anim-retarget` | 1.87 | 0.10 | 3.54 |
+| `anim-storm` | 0.63 | ≈0 | 1.62 |
+| `list-table-idle` | 1.03 | 0.55 | 4.46 |
+| `list-table-scroll` | 1.17 | 0.47 | 4.44 |
+| `list-table-jump` | 1.13 | 0.45 | 4.43 |
+| `list-table-refresh` | 0.33 | 0.12 | 1.45 |
+| `list-flat-idle` | 125 | 117 | 166 |
+| `list-flat-shuffle` | 27.3 | 25.1 | 56.0 |
+| `list-flat-grow` | ≈0 | ≈0 | ≈0 |
+| `life-layout-noflex` | 0.52 | 0.43 | 1.45 |
+| `life-layout` | 0.70 | 0.48 | 6.18 |
+| `life-image` | 1.99 | 0.91 | 4.02 |
+| `life-label` | 22.0 | 19.1 | 21.5 |
+| `life-row` | 20.6 | 15.2 | 27.2 |
+| `life-append` | 5.59 | 3.42 | 11.1 |
+| `life-churn` | ≈0 | ≈0 | ≈0 |
+| `ram-state` | 18.2 | 24.2 | – |
+| `ram-animated` | 17.0 | 6.79 | 21.0 |
+| `ram-rows` | 82.5 | 73.4 | 120 |
 
 **Memory left after destroying, MB.**
 
@@ -501,14 +449,14 @@ Each target is written the way its library is normally used: V2 the way BeatLead
 
 **Memory per component.**
 
-| Component | V1 | V2 | BSML | Quest Reactive | Quest BSML |
-| --- | --- | --- | --- | --- | --- |
-| Image | 1.1 KB | 942 B | 4.1 KB | 1.8 KB | 947 B |
-| Label | 20.2 KB | 19.4 KB | 21.9 KB | 24.4 KB | 14.5 KB |
-| Empty container | 750 B | 557 B | 6.3 KB | 1.2 KB | 488 B |
-| List row (background, icon, two labels) | 35.1 KB | 31.1 KB | 55.1 KB | 43.4 KB | 39.0 KB |
+| Component | V1 | V2 | BSML |
+| --- | --- | --- | --- |
+| Image | 1.1 KB | 942 B | 4.1 KB |
+| Label | 20.2 KB | 19.4 KB | 21.9 KB |
+| Empty container | 750 B | 557 B | 6.3 KB |
+| List row (background, icon, two labels) | 35.1 KB | 31.1 KB | 55.1 KB |
 
-**Allocated per frame.** Benchmarks at 10 KB or more on any PC target. Only accurate to a heap block.
+**Allocated per frame.** Benchmarks at 10 KB or more on any target. Only accurate to a heap block.
 
 | Benchmark | V1 | V2 | BSML |
 | --- | --- | --- | --- |

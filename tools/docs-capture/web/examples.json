@@ -68,8 +68,9 @@
     ["wait", 350], ["scroll", "text:scroll here", 0, 120], ["wait", 350], ["scroll", "text:scroll here", 0, 120],
     ["wait", 350], ["scroll", "text:scroll here", 0, 120], ["leave"], ["wait", 1000]] },
   "player": {"page": "/docs/reactive/animation/players", "index": 0, "asset": "animation/player.webp", "fps": 30, "steps": [
-    ["wait", 1800], ["click", "BsTextButton", 0], ["wait", 1000], ["click", "BsTextButton", 0], ["wait", 1200],
-    ["click", "BsTextButton", 1], ["wait", 1200], ["click", "BsTextButton", 2], ["leave"], ["wait", 1500]] },
+    ["wait", 100], ["click", "BsTextButton", 0], ["wait", 800], ["click", "BsTextButton", 0], ["wait", 900],
+    ["click", "BsTextButton", 0], ["wait", 1500], ["click", "BsTextButton", 1], ["wait", 1000],
+    ["click", "BsTextButton", 2], ["leave"], ["wait", 1200]] },
   "tracks": {"page": "/docs/reactive/animation/players", "index": 1, "asset": "animation/tracks.webp", "fps": 30, "steps": [
     ["wait", 700], ["click", "BsTextButton", 0], ["wait", 1400], ["click", "BsTextButton", 1], ["wait", 1400],
     ["click", "BsTextButton", 2], ["leave"], ["wait", 1600]] },

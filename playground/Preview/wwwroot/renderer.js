@@ -29,6 +29,18 @@ function transformText(text, style) {
     return text;
 }
 
+/**
+ * How far to move a line down so its capitals sit in the middle of the line box, for capline alignment. The box has
+ * room for descenders under the baseline, so centering it leaves capital letters above the middle.
+ */
+function capShift(size, style) {
+    measure.font = font(size, style);
+    const metrics = measure.measureText('H');
+    const box = metrics.fontBoundingBoxDescent - metrics.fontBoundingBoxAscent;
+    const ink = metrics.actualBoundingBoxAscent - metrics.actualBoundingBoxDescent;
+    return (box + ink) / 2;
+}
+
 function lineHeight(size, style) {
     measure.font = font(size, style);
     const metrics = measure.measureText('');
@@ -412,7 +424,8 @@ function applyText(el, n) {
     line.style.textOverflow = n.of === 1 ? 'ellipsis' : '';
     line.style.whiteSpace = n.wr ? 'pre-wrap' : 'pre';
     line.style.textDecoration = n.st & 4 ? 'underline' : n.st & 64 ? 'line-through' : '';
-    line.style.transform = n.st & 2 ? 'skewX(-10deg)' : '';
+    const shift = vertical === 0x2000 ? `translateY(${capShift(n.fs, n.st)}px) ` : '';
+    line.style.transform = (shift + (n.st & 2 ? 'skewX(-10deg)' : '')).trim();
 }
 
 export function render(batch) {

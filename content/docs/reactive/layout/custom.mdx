@@ -17,7 +17,7 @@ out its children inside the box it gets.
 Here's an example with both kinds of tree side by side. On the left, three flex layouts are stitched into one tree, and
 on the right, a ring uses a `RadialLayoutController` and is sized by its flex parent as one box:
 
-<Playground preview="/assets/layout/radial-showcase.gif">
+<Playground preview="/assets/layout/radial-showcase.webp">
 ```csharp excerpt
 var radius = Remember(10f);
 
@@ -523,7 +523,7 @@ itself instead of only reporting a preferred size.
 
 Try adding and removing rings in this row, where none of them has a size of its own:
 
-<Playground preview="/assets/layout/radial-in-flex.gif">
+<Playground preview="/assets/layout/radial-in-flex.webp">
 ```csharp excerpt
 new Layout {
     FlexController = {
@@ -801,7 +801,7 @@ label. Calling `Measure` on a `Layout` asks its flex controller to calculate the
 
 In this example the ring holds flex cards, and a toggle makes two of them grow:
 
-<Playground preview="/assets/layout/flex-in-radial.gif">
+<Playground preview="/assets/layout/flex-in-radial.webp">
 ```csharp excerpt
 new Layout {
     LayoutController = new RadialLayoutController { Radius = 14f },
@@ -1073,7 +1073,7 @@ subscribe to anything.
 This demo builds on the cards from the previous section, and a slider sets the `Offset` of cards 1, 3 and 4 through
 a `RadialModifier`:
 
-<Playground showCode>
+<Playground showCode preview="/assets/layout/card-offset.webp">
 ```csharp excerpt
 var offset = Remember(0f);
 

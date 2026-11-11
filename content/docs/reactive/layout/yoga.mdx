@@ -18,7 +18,7 @@ between neighbours, and `Padding` keeps all of them away from the container's ed
 
 Try this sandbox, where five blocks of different sizes sit in a box and each control changes one of its properties:
 
-<Playground scale="1">
+<Playground scale="1" preview="/assets/layout/flex-sandbox.webp">
 ```csharp
 partial class FlexSandbox : ReactiveComponent {
     protected override GameObject Construct() {
@@ -282,7 +282,7 @@ A single value like `Size = 7.pt` sets both axes at once. A `YogaFrame` holds on
 
 In this demo, a slider sets the same number for two bars, in points for one and in percent of the box for the other:
 
-<Playground>
+<Playground preview="/assets/layout/units.webp">
 ```csharp excerpt
 CreateRow(
     width: amount.Map(x => x.pt),
@@ -431,7 +431,7 @@ rest decided, which also keeps a growing item from being squeezed to nothing.
 
 Below you can see two growing blocks sharing a row with a fixed one, each with a slider for its `FlexGrow`:
 
-<Playground>
+<Playground preview="/assets/layout/growing.webp">
 ```csharp excerpt
 new Background {
     FlexItem = {
@@ -607,7 +607,7 @@ bound width.
 
 Here's a badge you can move between the corners of a box without the two blocks inside it noticing:
 
-<Playground>
+<Playground preview="/assets/layout/absolute.webp">
 ```csharp excerpt
 new Background {
     FlexItem = {
@@ -748,7 +748,7 @@ size. [Layout System](/docs/reactive/layout/system#leaves-and-roots) explains wh
 
 Turn either flag off below to see the root, the blue box, shrink to its label on that axis:
 
-<Playground showCode>
+<Playground showCode preview="/assets/layout/constraints.webp">
 ```csharp
 class Constraints : ReactiveComponent {
     protected override GameObject Construct() {

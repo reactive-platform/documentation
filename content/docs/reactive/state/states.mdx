@@ -11,7 +11,7 @@ this one idea.
 Here's the smallest example, a number and a button that adds to it. The button only changes `count`, and the label keeps
 up on its own:
 
-<Playground showCode>
+<Playground showCode preview="/assets/state/counter.webp">
 ```csharp
 class Counter : ReactiveComponent {
     protected override GameObject Construct() {
@@ -72,7 +72,7 @@ use it for callbacks that are about changes rather than values, like a log, a so
 Below you can see one of each added to the same state with their runs counted, so the eager count starts at 1 and the
 lazy one at 0:
 
-<Playground showCode>
+<Playground showCode preview="/assets/state/callbacks.webp">
 ```csharp
 class Callbacks : ReactiveComponent {
     protected override GameObject Construct() {
@@ -151,7 +151,7 @@ listens to gets no deliveries at all, so reading it only through `Value` has no 
 
 Try this demo, which writes a state 1000 times per click while its delivery count only goes up by one each time:
 
-<Playground showCode>
+<Playground showCode preview="/assets/state/batching.webp">
 ```csharp
 class Batching : ReactiveComponent {
     protected override GameObject Construct() {

@@ -8,7 +8,7 @@ description: "States that move towards a target over time, how fast and along wh
 An animated state moves toward its target instead of jumping to it, and everything bound to it glides along without
 knowing it's animated. Hover this card to see a color and a scale do that:
 
-<Playground preview="/assets/animation/animated-state.gif">
+<Playground preview="/assets/animation/animated-state.webp">
 ```csharp excerpt
 var color = RememberAnimated(idle, 250.ms, AnimationCurve.EaseOutCubic);
 var scale = RememberAnimated(1f, 300.ms, AnimationCurve.EaseOutBack);
@@ -119,7 +119,7 @@ the target and slow when close, and the factor sets the pace at any frame rate. 
 somewhere else from wherever it is, so a factor suits values that change all the time, like a scroll position or
 anything following a slider. Drag the slider below and compare the two:
 
-<Playground preview="/assets/animation/timing.gif">
+<Playground preview="/assets/animation/timing.webp">
 ```csharp excerpt
 var timed = RememberAnimated(0f, 400.ms, AnimationCurve.EaseInOutCubic);
 var factored = RememberAnimated(0f, 8.fact);
@@ -241,7 +241,7 @@ restart is also where the curve, the optional third argument, comes in, since it
 progress over time. Leave it out with a factor, because a curve would start its easing over on every new target. Every
 dot below gets the same target and duration, so only the curve differs:
 
-<Playground preview="/assets/animation/curves.gif">
+<Playground preview="/assets/animation/curves.webp">
 ```csharp excerpt
 (string, AnimationCurve)[] curves = [
     ("Linear", AnimationCurve.Linear),
@@ -385,7 +385,7 @@ families you may know from CSS, like Quad, Cubic, Sine and Back.
 For a curve of your own, subclass `AnimationCurve` and override `Evaluate`, which turns how much of the time has passed
 into how far the value has got. This one bounces off the bottom like a dropped ball:
 
-<Playground>
+<Playground preview="/assets/animation/drop.webp">
 ```csharp excerpt
 class BounceCurve : AnimationCurve {
     // Takes how much of the time has passed and returns how far the
@@ -518,7 +518,7 @@ animated. Your own needs two methods:
 The usual reason to write one is color, since the default blends in RGB and turns a muddy gray between opposite hues.
 Press Swap to compare it with one that goes around the hue circle instead:
 
-<Playground preview="/assets/animation/interpolators.gif">
+<Playground preview="/assets/animation/interpolators.webp">
 ```csharp excerpt
 class HsvInterpolator : ValueInterpolator<HsvInterpolator, Color> {
     public override Color Lerp(Color from, Color to, float t) {

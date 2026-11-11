@@ -6,7 +6,7 @@ description: The hue circle, as a swatch that opens it and as a control on its o
 The color picker follows the input field's shape: a `BsColorPicker` swatch you click, a `BsColorCircleModal` that
 opens next to it, and a `BsColorPickerContext` they share. The showcase's *Color picker* page:
 
-<Playground preview="/assets/sdk/color-picker.gif">
+<Playground preview="/assets/sdk/color-picker.webp">
 ```csharp excerpt
 var pickerContext = new BsColorPickerContext { SelectedColor = Color.cyan };
 var pickerAnchor = Ref<RectTransform>();
@@ -95,7 +95,7 @@ and an offset. `Animated` and `ShowBackground` on the modal are the cosmetic swi
 
 The circle itself is a component you can use without the modal:
 
-<Playground preview="/assets/sdk/color-circle.gif">
+<Playground preview="/assets/sdk/color-circle.webp">
 ```csharp excerpt
 new BsColorCircle {
     FlexItem = {

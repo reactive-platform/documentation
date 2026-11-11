@@ -21,7 +21,7 @@ there is one and builds a new one otherwise, and `Despawn` takes it back. In the
 target shows its points in a popup that floats up and fades within a second, the first case above. Click quickly, and
 keep an eye on how many popups get built:
 
-<Playground showCode>
+<Playground showCode preview="/assets/lists/pool-popups.webp">
 ```csharp
 partial class Target : ReactiveComponent {
     private ReactivePool<Popup> _pool = null!;
@@ -278,7 +278,7 @@ your own. It files every spawned component under a key, so `SpawnedComponents` b
 take the key alone. Here's an example where the key is the cell under the pointer, so press an empty cell and drag to
 paint, or press a painted one and drag to erase:
 
-<Playground showCode>
+<Playground showCode preview="/assets/lists/pool-pixels.webp">
 ```csharp
 readonly record struct Cell(int X, int Y);
 
@@ -514,7 +514,7 @@ interface asks for two methods for that:
 
 Below you can see both in a toast that fades out on its own:
 
-<Playground showCode>
+<Playground showCode preview="/assets/lists/pool-toasts.webp">
 ```csharp
 partial class Toasts : ReactiveComponent {
     private const int MaxToasts = 3;

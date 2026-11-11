@@ -10,7 +10,7 @@ whole target, usually a component. That suits entrances, exits and sequences, wh
 pop it up rather than steer a value. Play the animation on this box, or drag along the timeline under it to scrub
 through it:
 
-<Playground showCode>
+<Playground showCode preview="/assets/animation/player.webp">
 ```csharp
 partial class PlayerDemo : ReactiveComponent {
     private static readonly Animation<IReactiveComponent> PopIn = new(
@@ -274,7 +274,7 @@ A track is what an animation does to its target as the progress goes from 0 to 1
 `Apply(target, progress)`. `AnimationTracks` has ready tracks for fading and scaling, `+` runs two tracks together, and
 `Create` turns any function into a track, as these three buttons show:
 
-<Playground showCode>
+<Playground showCode preview="/assets/animation/tracks.webp">
 ```csharp
 partial class TracksDemo : ReactiveComponent {
     // Two tracks at once
@@ -403,7 +403,7 @@ pick a part the target already has. Looking up a child or creating something the
 through the last run, or `AnimationIteration.Infinite` to repeat until stopped. Since `Animation` is a record, `with`
 makes a copy with a different count and leaves the shared one alone, so every button below plays the same beat:
 
-<Playground showCode>
+<Playground showCode preview="/assets/animation/repeating.webp">
 ```csharp
 partial class RepeatingDemo : ReactiveComponent {
     private static readonly Animation<IReactiveComponent> Beat = new(
@@ -546,7 +546,7 @@ Complete during Forever completes only the beat in progress, since an endless an
 
 Here all four play the same animation side by side:
 
-<Playground showCode>
+<Playground showCode preview="/assets/animation/direction.webp">
 ```csharp
 partial class DirectionDemo : ReactiveComponent {
     // The player's target is a plain state, which the dot's position follows

@@ -10,7 +10,7 @@ a state instead of a value.
 
 Here's a slider that drives a label's text, size and color through one state, and shows a hint once the level reaches 8:
 
-<Playground>
+<Playground preview="/assets/state/levels.webp">
 ```csharp excerpt
 var level = Remember(3);
 
@@ -85,7 +85,7 @@ through its own callback, while you write the callback's value back into the sta
 
 Below you can see a toggle and a button sharing one state, along with a line of text that follows it:
 
-<Playground>
+<Playground preview="/assets/state/two-way.webp">
 ```csharp excerpt
 var enabled = Remember(true);
 
@@ -339,7 +339,7 @@ Bindings work at any depth of an initializer, not only on the component itself. 
 
 Try this demo, where one slider drives a box's size, the gap between its dots and its rotation:
 
-<Playground>
+<Playground preview="/assets/state/nested.webp">
 ```csharp excerpt
 new Background {
     FlexItem = {
@@ -429,7 +429,7 @@ gets `sValue`.
 
 In the next example, a `Meter` only declares `Value`, and two meters bind to a state through `sValue`:
 
-<Playground>
+<Playground preview="/assets/state/meters.webp">
 ```csharp excerpt
 class Meter : ReactiveComponent {
     public float Value {
@@ -470,6 +470,38 @@ new Meter { sValue = level.Map(x => 1f - x) };
 new Meter { Value = 0.3f };
 ```
 ```csharp
+class Meters : ReactiveComponent {
+    protected override GameObject Construct() {
+        var level = Remember(0.6f);
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 2.pt
+            },
+
+            Children = {
+                // sValue exists without Meter declaring it
+                new Meter { sValue = level },
+                new Meter { sValue = level.Map(x => 1f - x) },
+                new Meter { Value = 0.3f },
+
+                new BsSlider {
+                    FlexItem = {
+                        Size = new() { x = 50.pt, y = 7.pt },
+                        Margin = new() { top = 2.pt }
+                    },
+                    ValueStep = 0.01f,
+                    Value = level.Value,
+                    OnValueChanged = x => level.Value = x
+                }
+            }
+        }.Use();
+    }
+}
+
 class Meter : ReactiveComponent {
     public float Value {
         get => _value.Value;
@@ -505,38 +537,6 @@ class Meter : ReactiveComponent {
                     Sprite = BeatSaberResources.Sprites.background,
                     PixelsPerUnit = 10f,
                     Color = new Color(0.35f, 0.75f, 1f)
-                }
-            }
-        }.Use();
-    }
-}
-
-class Meters : ReactiveComponent {
-    protected override GameObject Construct() {
-        var level = Remember(0.6f);
-
-        return new Layout {
-            FlexController = {
-                FlexDirection = FlexDirection.Column,
-                AlignItems = Align.Center,
-                JustifyContent = Justify.Center,
-                Gap = 2.pt
-            },
-
-            Children = {
-                // sValue exists without Meter declaring it
-                new Meter { sValue = level },
-                new Meter { sValue = level.Map(x => 1f - x) },
-                new Meter { Value = 0.3f },
-
-                new BsSlider {
-                    FlexItem = {
-                        Size = new() { x = 50.pt, y = 7.pt },
-                        Margin = new() { top = 2.pt }
-                    },
-                    ValueStep = 0.01f,
-                    Value = level.Value,
-                    OnValueChanged = x => level.Value = x
                 }
             }
         }.Use();

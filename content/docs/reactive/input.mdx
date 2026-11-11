@@ -11,7 +11,7 @@ attach handlers to a graphic, along with the habit of turning what they report i
 `WithPointerEvents` attaches a handler to any graphic component, meaning anything with an image or text the event system
 can hit. Try this demo, where a box logs every event it gets and shows the handler's flags below it:
 
-<Playground>
+<Playground preview="/assets/input/pointer-events.webp">
 ```csharp excerpt
 var graphic = Remember(GraphicState.None);
 
@@ -158,7 +158,7 @@ state into a color state you can bind.
 
 Below you can see a button built from both, with a toggle that turns off its interactability:
 
-<Playground>
+<Playground preview="/assets/input/own-button.webp">
 ```csharp excerpt
 static readonly ColorSet colors = new() {
     Color = new Color(1f, 1f, 1f, 0.1f),
@@ -286,7 +286,7 @@ rest.
 For a hold, `onDown` sets a pressed state and `onUp` and `onLeave` clear it. An animated progress then fills while it's
 set and drains when it's cleared, and finishing a fill confirms once, as this hold-to-confirm button shows:
 
-<Playground>
+<Playground preview="/assets/input/hold.webp">
 ```csharp excerpt
 pressed.AddCallback(x => {
     progress.Timing = x ? 1200.ms : (progress.Value * 1200 / 3f).ms;
@@ -418,7 +418,7 @@ the pointer only takes turning each event into a position in the pressed object'
 
 The pad below makes that position the end of a glide, so press anywhere on it and drag past its edges:
 
-<Playground>
+<Playground preview="/assets/input/drag.webp">
 ```csharp excerpt
 var from = Remember(Vector2.zero);
 var to = Remember(Vector2.zero);
@@ -590,7 +590,7 @@ Scrolling arrives like the other events, through `onScroll`, with the wheel's mo
 mouse and the system settings, so the same notch can arrive as a whole step or a fraction of one. That makes the sign
 the only part worth trusting, and this number steps by one for each scroll in either direction:
 
-<Playground>
+<Playground preview="/assets/input/scroll.webp">
 ```csharp excerpt
 Do = x => x.WithPointerEvents(onScroll: h => {
     var delta = h.EventData?.scrollDelta.y ?? 0f;

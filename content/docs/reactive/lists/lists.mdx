@@ -8,7 +8,7 @@ description: "Showing data as cells that are reused rather than rebuilt, virtual
 A list in Reactive is a `Repeater` or a `Table`. You give it the items and a function that builds one cell, and it
 keeps the cells in step with the items. Add and remove names here, and keep an eye on how many cells get built:
 
-<Playground preview="/assets/lists/repeater.gif">
+<Playground preview="/assets/lists/repeater.webp">
 ```csharp excerpt
 new Repeater<string, Label> {
     FlexController = {
@@ -129,7 +129,7 @@ shows from the context.
 A cell that sets its text once from the item compiles and looks right at first. Below, the same list is shown with that
 cell and with one that maps its text, so reverse it and compare the two:
 
-<Playground>
+<Playground preview="/assets/lists/reuse.webp">
 ```csharp excerpt
 // Set once, so a reused cell keeps showing its first item
 construct: context => new Label {
@@ -244,7 +244,7 @@ A repeater builds a cell for every item, which is fine for twenty items but not 
 as many cells as fit on screen, and as you scroll, it moves them from one end to the other with new items. Scroll
 through these ten thousand rows and click one:
 
-<Playground preview="/assets/lists/table.gif">
+<Playground preview="/assets/lists/table.webp">
 ```csharp excerpt
 var scroll = new ScrollContext();
 var rows = Enumerable.Range(0, 10000).ToArray();
@@ -353,7 +353,7 @@ Each of them takes an `immediately` flag that skips the animation.
 Lists also track which items are selected, and both ends of that go through the context. A cell selects itself by
 setting `context.Selected` and reads the same flag back to look selected, as these chips do:
 
-<Playground preview="/assets/lists/selection.gif">
+<Playground preview="/assets/lists/selection.webp">
 ```csharp excerpt
 var selection = Remember<IReadOnlyCollection<string>>(initial);
 

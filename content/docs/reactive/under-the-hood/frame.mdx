@@ -5,75 +5,172 @@ description: "When state changes are delivered and layouts recalculated, how the
 
 ## Two layers, in order
 
-Neither states nor layouts do their work at the moment something changes. A changed state is queued. A changed
-layout is queued. `ReactiveScheduler` drains both queues once per frame. That is the one place batching comes from.
-Ten writes to a state deliver one update. Ten changes to a layout recalculate it once. The order in which you set
-things never matters, because nothing is acted on until the end of the frame.
+Neither states nor layouts do their work at the moment something changes. A changed state and a changed layout are both
+queued, and `ReactiveScheduler` drains the two queues once per frame. That one drain is where all batching comes from, so
+ten writes to a state deliver one update and ten changes to a layout recalculate it once. The order you set things in
+never matters either, because nothing is acted on until the end of the frame.
 
 The scheduler hooks `Canvas.preWillRenderCanvases`, which Unity raises after every `LateUpdate` and right before it
-rebuilds the UI canvases. Whatever is changed during a frame, in `OnUpdate`, in a pointer handler, from a coroutine or
-by an animation module, is delivered and laid out before that same frame is drawn. There is no lag of a frame between
-writing a state and seeing it. The hook is static and installed once, so there is nothing to add to a scene.
+rebuilds the UI canvases. Whatever changes during a frame, in `OnUpdate`, in a pointer handler, from a coroutine or by an
+animation module, is therefore delivered and laid out before that same frame is drawn, without a frame of lag. The hook
+is static and installed once, so there's nothing to add to a scene.
 
-Inside the hook, two layers run in a fixed order. The **state layer** runs first. Every dirty state computes its value
-and runs its callbacks once. Bindings set their properties here, and a property that affects layout, such as a `Size`,
-a `Gap` or a label's text, marks its layout dirty as a side effect. A callback that writes another state gets that
-state delivered in the same run, so cascades settle. One that never settles is cut off after a hundred thousand
-flushes with an error rather than hanging the game. Then the **layout layer** runs, on the settled values. Every
-layout that was marked dirty is recalculated, and the result is applied to the rects.
+Inside the hook, two layers run in a fixed order. The **state layer** goes first: every dirty state computes its value
+and runs its callbacks once, and bindings set their properties here. A property that affects layout, such as a `Size`,
+a `Gap` or a label's text, marks its layout dirty as a side effect. A callback that writes another state gets that state
+delivered in the same run, so cascades settle, and one that never settles is cut off after a hundred thousand flushes
+with an error instead of hanging the game. The **layout layer** then runs on the settled values, recalculating every
+layout that was marked dirty and applying the result to the rects. Here's where the two layers sit in a frame:
 
-Layout can feed back into state. A component that reads its width in `LayoutAppliedEvent` and writes it to a state
-has dirtied a state during the layout layer. That is allowed. The scheduler runs both layers again, states and then
-layout, until neither has work. Something that keeps scheduling the other side forever, such as a layout that writes
-a state that changes that layout's size every time, is stopped after a hundred passes with an error, and the rest
-waits for the next frame. `ReactiveScheduler.Run()` runs this same loop on demand, for code that needs the result
-before the end of the frame. Calling it while a layer is already running does nothing, so it is safe from inside a
-callback.
+```mermaid
+flowchart TB
+    update["Update and LateUpdate"] --> hook["preWillRenderCanvases"]
+    hook --> states
+
+    subgraph run["ReactiveScheduler.Run"]
+        direction LR
+        states["State layer"] --> layout["Layout layer"]
+        layout -- "changed states" --> states
+    end
+
+    layout -- "nothing left" --> draw["Canvases rebuild and draw"]
+
+    style run fill:#0ea5e91a,stroke:#0ea5e9
+```
+
+You might have noticed the loop from the layout layer back to the state layer. It comes into play when code reads
+something the layout produced and writes it to a state, like this underline that takes its width from the label above it:
+
+```csharp
+var title = Remember("Settings");
+var width = Remember(0f);
+
+new Layout {
+    FlexController = {
+        FlexDirection = FlexDirection.Column,
+        AlignItems = Align.Center,
+        Gap = 1.pt
+    },
+
+    Children = {
+        new Label {
+            sText = title,
+
+            // Runs in the layout layer, once the label has its size
+            Do = x => x.LayoutAppliedEvent += _ => {
+                width.Value = x.ContentTransform.rect.width;
+            }
+        },
+
+        // Sized from that width before the frame is drawn
+        new Background {
+            FlexItem = {
+                sSize = width.Map(x => new YogaVector(x.pt, 0.5f.pt))
+            },
+
+            Color = Color.white
+        }
+    }
+}
+```
+
+The label's width only exists once the layout layer has run, so the handler changes a state in the middle of it. Instead
+of leaving that change for the next frame, the scheduler goes back to the state layer, which gives the underline its new
+size, and then lays it out again. The underline is therefore drawn at the right width in the same frame as a new title,
+rather than a frame late at the old one. Something that keeps both layers busy forever is stopped after a hundred passes
+with an error, and the rest waits for the next frame. `ReactiveScheduler.Run()` runs the whole loop on demand, and
+calling it while a layer is running does nothing, so it's safe from inside a callback.
 
 ## Inside the state layer
 
-A state has two kinds of subscribers, and the distinction is what makes derived states cheap. **Invalidation
-callbacks** are told immediately and synchronously when the state changes, with no value. That is how `Map`, `Where`
-and `RememberDerived` learn that their cached value is stale without computing anything. **Value callbacks** are what
-bindings and `AddCallback` register, and they are the ones the layer delivers later, with the value.
+A state has two kinds of subscribers, and the difference between them is what makes derived states cheap:
 
-When a state changes, it first walks its invalidation callbacks, which mark everything downstream stale, and each
-downstream state walks its own in turn. Each state along the way that has value callbacks and isn't already dirty
-marks itself dirty and queues itself. The walk is numbered. A state reached twice in the same walk, through two paths
-from the same source, passes the change on once, and that is what keeps a diamond of derived states from delivering
-twice. States with no value callbacks never enter the queue at all, so a state that is only ever read directly has no
-per-frame cost.
+- **Invalidation callbacks** are told right away that the state changed, without a value. That's how `Map`, `Where` and
+  `RememberDerived` learn that their cached value is stale without computing anything.
+- **Value callbacks** are what bindings and `AddCallback` register, and the state layer delivers them later, with the
+  value.
 
-When the layer runs, each queued state flushes. It clears its dirty flag, runs `OnFlush`, where `CellContext` and
-`ScrollContext` record which of their fields changed, then reads its own `Value`, which for a derived state is where
-the computation finally happens, and hands the result to each value callback. Values are pulled at flush time rather
-than pushed at write time. That is why a derived state never sees half an update: by the time it computes, every
-write of the frame has landed. A callback that writes a state during the flush queues it behind the current one, so
-it is delivered in the same run. A value callback whose target has died, which the lifetime overloads check, removes
-itself as part of the flush.
+When a state changes, it walks its invalidation callbacks, which mark everything downstream stale, and each downstream
+state walks its own in turn. Each state on the way that has value callbacks and isn't dirty yet marks itself dirty and
+joins the queue. The walk is numbered, so a state reached twice through two paths from the same source passes the change
+on once, and a diamond of derived states doesn't deliver twice. States without value callbacks never enter the queue,
+so a state that's only ever read directly costs nothing per frame.
+
+When the layer runs, each queued state flushes, and that's the first time a derived state actually computes. It reads
+its sources as they are at that point, after every write of the frame has landed, so it never sees half an update. Take
+a label bound to a derived state, with the source written twice in one frame:
+
+```csharp
+var count = Remember(0);
+var doubled = count.Map(x => (x * 2).ToString());
+
+var label = new Label {
+    sText = doubled
+};
+
+// Later, in one frame
+count.Value = 1;
+count.Value = 2;
+```
+
+Here's what those two writes go through before the label shows "4":
+
+```mermaid
+%%{init: {"sequence": {"mirrorActors": false, "actorMargin": 24}}}%%
+sequenceDiagram
+    autonumber
+    participant code as Your code
+    participant count as count
+    participant doubled as doubled
+    participant layer as State layer
+    participant label as Label
+
+    code->>count: Value = 1
+    Note over count: no value callbacks, not queued
+    count->>doubled: invalidates
+    doubled->>layer: queues itself
+    code->>count: Value = 2
+    count->>doubled: invalidates
+    Note over doubled: already dirty, not queued again
+    layer->>doubled: flushes
+    doubled->>count: reads Value, 2
+    doubled->>label: delivers "4" to sText
+```
 
 ## Inside the layout layer
 
-Marking a layout dirty costs almost nothing. The node goes into a queue, stamped with the run it is queued for, so
-marking it again in the same frame is a no-op. When the layer runs, it first turns the queue into a set of **roots**.
-For each queued node it walks up through the parents that lay it out, meaning the parent has a controller and the
-node is within its layout, until it reaches one that nobody lays out. That node is a root. The walk stamps each node
-it passes, so a walk that reaches a node already visited in this run stops there, and a hundred dirty siblings cost
-one walk up. A root that isn't active in the hierarchy is skipped and keeps its stamp. It schedules itself again when
-it is enabled, so hidden screens do no layout work at all and catch up in the frame they are shown.
+Marking a layout dirty only puts its node in a queue. A node can't be recalculated on its own, though, because its size
+depends on the parents that lay it out, so the layer walks up from each queued node to its **root**, the first node
+above it that nothing lays out. A walk stops at a node that an earlier walk already passed, so all the dirty nodes of
+one tree lead to a single recalculation of its root.
 
-Each root then recalculates. Its controller runs the engine over the stitched tree, with the parent rect as
-constraints or `NaN` on the axes it is unconstrained on, and the root applies the resulting dimensions downward. Each
-node is handed its dimensions, writes its rect only if they differ from the ones it last applied, and, if it has a
-controller of its own, applies its children's in turn. Changes made while the layout layer runs, by a
-`LayoutAppliedEvent` handler for example, are stamped for the next run and never alter the pass in progress. What
-"recalculate" means for a stitched tree versus a separate one is explained in
-[Layout Engine Internals](/docs/reactive/under-the-hood/layout).
+That recalculation runs the layout engine over the whole tree, within the rect the root is attached to, and hands the
+results down, where each node writes its rect only if it changed. A hidden root is skipped until it's shown, and changes
+made in a `LayoutAppliedEvent` handler wait for the next run, so a pass never changes under itself. [Layout Engine
+Internals](/docs/reactive/under-the-hood/layout) covers what recalculating a tree involves, and the whole path looks
+like this:
 
-You almost never schedule layout yourself. A layout is marked dirty when a controller or modifier property changes
-or the controller is swapped, when children are added or removed, when a child enters or leaves the layout by being
-enabled, disabled or ignored, when a leaf's content changes size, when a component is enabled after something changed
-while it was hidden, and when a root's rect is resized from outside the layout system. The one method for doing it by
-hand is `RecalculateLayout()` on a root, which recalculates just that tree immediately without running the state
-layer. On a node laid out by its parent it throws, since only the root can calculate the tree it belongs to.
-`ScheduleLayoutRecalculation()` is the call to make there. It marks the node for the next frame.
+```mermaid
+%%{init: {"flowchart": {"rankSpacing": 32, "nodeSpacing": 24}}}%%
+flowchart LR
+    walk["Walk up to the root"] --> active(["Root shown?"])
+    active -- "no" --> later["Wait until shown"]
+    active -- "yes" --> calc["Recalculate once, write changed rects"]
+    calc -- "changes in LayoutAppliedEvent" --> next["Next run"]
+
+    style later fill:#64748b1a,stroke:#64748b
+    style next fill:#f59e0b1a,stroke:#f59e0b
+```
+
+You rarely need to mark a layout dirty yourself, since anything that affects it does that already:
+
+- A controller or modifier property changes, or the controller is swapped.
+- A child is added or removed, or enabled, disabled or ignored.
+- A leaf's content changes size.
+- A component is shown after something changed while it was hidden.
+- A root's rect is resized from outside the layout system.
+
+When you do need it, call `NotifyLayoutDataUpdated()` on the component that changed, the same way labels and images
+notify their parent when their content changes size. Always leave the rest to the scheduler instead of recalculating
+layouts your own way, because only the scheduler's pass runs once per frame, after the states it reads have settled. If
+you need a layout of your own, see [Your own Layout Controller](/docs/reactive/layout/custom).

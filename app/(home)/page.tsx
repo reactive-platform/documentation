@@ -20,7 +20,7 @@ export default function HomePage() {
           Get Started
         </Link>
 
-        <div className="grid w-full max-w-5xl grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid w-full max-w-5xl grid-cols-1 gap-8 md:grid-cols-2">
           <div className="flex flex-col">
             <Card
               className="flex-grow"
@@ -35,14 +35,6 @@ export default function HomePage() {
               title="Try it in the browser"
               description="The Playground runs real Reactive components with nothing to install."
               href="/playground"
-            />
-          </div>
-          <div className="flex flex-col">
-            <Card
-              className="flex-grow"
-              title="Beat Saber SDK"
-              description="Every styled component with an example: buttons, toggles, sliders, dropdowns, modals and more."
-              href="/docs/sdk"
             />
           </div>
         </div>

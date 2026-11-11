@@ -696,7 +696,7 @@ the callback in `OnDespawn` it would call back into whoever used it last.
 `Spawn<T>()`, `Despawn(component)` and `Preload<T>(count)` are all the global pool has. A spawned component stays under
 the pool's inactive object until you add it somewhere, and `Despawn` throws for one the pool didn't hand out. The SDK's
 dropdown lists, keyboards and color circles are pooled this way through `SharedModal`, so a screen with twenty
-dropdowns builds a single list, and [Modals and Dialogs](/docs/sdk/modals#shared-modals) covers how.
+dropdowns builds a single list.
 
 <Alert>
     Don't forget that a component still showing dies with its parent like any other, and no pool can reuse it after

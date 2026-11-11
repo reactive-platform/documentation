@@ -342,8 +342,6 @@ protected override void OnStart() {
 }
 ```
 
-Read [Modals and Dialogs](/docs/sdk/modals#how-overlays-work).
-
 ### Modal opens only once
 
 Clicking the dimmed area doesn't close a modal by itself, so if nothing clears the state there, the modal stays pushed
@@ -356,8 +354,6 @@ new Modal {
     OnClickOutside = () => opened.Value = false
 }
 ```
-
-Read [Modals and Dialogs](/docs/sdk/modals).
 
 ## Input
 

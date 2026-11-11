@@ -212,6 +212,7 @@ class RadialLayoutController : ILayoutController {
     private readonly List<LayoutDimensions> _dimensions = new();
     private float _radius = 10f;
     private Vector2 _size;
+    private Vector2 _bounds;
 
     // No context type, so a parent never stitches this controller into its
     // tree and measures it instead
@@ -275,9 +276,16 @@ class RadialLayoutController : ILayoutController {
         }
 
         var bounds = max - min;
-        _size = constraints.x > 0f && constraints.y > 0f
-            ? constraints
-            : bounds;
+        var placing = constraints.x > 0f && constraints.y > 0f;
+
+        // A child that changed inside its own tree doesn't make the parent
+        // measure this ring again, so the ring asks for it when its box changes
+        if (placing && bounds != _bounds) {
+            LayoutControllerUpdatedEvent?.Invoke();
+        }
+
+        _bounds = bounds;
+        _size = placing ? constraints : bounds;
 
         // Center the children's box inside the box this controller is given
         var shift = (_size - bounds) / 2f - min;
@@ -353,6 +361,7 @@ class RadialLayoutController : ILayoutController {
     private readonly List<LayoutDimensions> _dimensions = new();
     private float _radius = 10f;
     private Vector2 _size;
+    private Vector2 _bounds;
 
     // No context type, so a parent never stitches this controller into its
     // tree and measures it instead
@@ -416,9 +425,16 @@ class RadialLayoutController : ILayoutController {
         }
 
         var bounds = max - min;
-        _size = constraints.x > 0f && constraints.y > 0f
-            ? constraints
-            : bounds;
+        var placing = constraints.x > 0f && constraints.y > 0f;
+
+        // A child that changed inside its own tree doesn't make the parent
+        // measure this ring again, so the ring asks for it when its box changes
+        if (placing && bounds != _bounds) {
+            LayoutControllerUpdatedEvent?.Invoke();
+        }
+
+        _bounds = bounds;
+        _size = placing ? constraints : bounds;
 
         // Center the children's box inside the box this controller is given
         var shift = (_size - bounds) / 2f - min;
@@ -675,6 +691,7 @@ class RadialLayoutController : ILayoutController {
     private readonly List<LayoutDimensions> _dimensions = new();
     private float _radius = 10f;
     private Vector2 _size;
+    private Vector2 _bounds;
 
     // No context type, so a parent never stitches this controller into its
     // tree and measures it instead
@@ -738,9 +755,16 @@ class RadialLayoutController : ILayoutController {
         }
 
         var bounds = max - min;
-        _size = constraints.x > 0f && constraints.y > 0f
-            ? constraints
-            : bounds;
+        var placing = constraints.x > 0f && constraints.y > 0f;
+
+        // A child that changed inside its own tree doesn't make the parent
+        // measure this ring again, so the ring asks for it when its box changes
+        if (placing && bounds != _bounds) {
+            LayoutControllerUpdatedEvent?.Invoke();
+        }
+
+        _bounds = bounds;
+        _size = placing ? constraints : bounds;
 
         // Center the children's box inside the box this controller is given
         var shift = (_size - bounds) / 2f - min;
@@ -799,16 +823,13 @@ We've seen that a flex row used `Measure` to fit a ring in, and this works the s
 controller can hold flex layouts as children, each one a Yoga tree of its own, and it measures them like it measures a
 label. Calling `Measure` on a `Layout` asks its flex controller to calculate the subtree and report the size.
 
-In this example the ring holds flex cards, and a toggle makes two of them grow:
+In this example the ring holds flex cards, a slider sets how many blocks fill the row inside each one, and a toggle
+wraps those rows:
 
 <Playground preview="/assets/layout/flex-in-radial.webp">
 ```csharp excerpt
-new Layout {
-    LayoutController = new RadialLayoutController { Radius = 14f },
-
-    FlexItem = {
-        Size = 46.pt
-    },
+new Background {
+    LayoutController = new RadialLayoutController { Radius = 12f },
 
     Children = {
         new Background {
@@ -820,7 +841,15 @@ new Layout {
 
             Children = {
                 new Label { Text = "1" },
-                new Label { Text = "card", FontSize = 2.4f }
+
+                // A flex row of blocks, as many as the slider says
+                new Repeater<int, Background> {
+                    FlexController = { FlexDirection = FlexDirection.Row },
+                    sItems = blocks.Map(GetBlockIndices),
+                    ConstructCell = _ => new Background {
+                        FlexItem = { Size = 2.pt }
+                    }
+                }
             }
         },
 
@@ -833,20 +862,24 @@ class CardsOnRing : ReactiveComponent {
     private const int ItemCount = 5;
 
     protected override GameObject Construct() {
-        var expanded = Remember(false);
+        var blocks = Remember(2);
+        var wrap = Remember(false);
 
-        var ring = new Layout {
-            LayoutController = new RadialLayoutController { Radius = 14f },
+        // No fixed size, so the column measures the ring through its
+        // controller, and the backdrop shows how far it grows with the cards
+        var ring = new Background {
+            LayoutController = new RadialLayoutController { Radius = 12f },
 
-            FlexItem = {
-                Size = 46.pt
-            }
+            Sprite = BeatSaberResources.Sprites.background,
+            PixelsPerUnit = 10f,
+            Color = Color.white with { a = 0.08f }
         };
 
         for (var i = 0; i < ItemCount; i++) {
             ring.Children.Add(CreateCard(
                 index: i,
-                expanded: expanded
+                blocks: blocks,
+                wrap: wrap
             ));
         }
 
@@ -861,59 +894,95 @@ class CardsOnRing : ReactiveComponent {
             Children = {
                 ring,
 
-                new BsToggle {
-                    OnToggleStateChanged = x => expanded.Value = x
-                }.InNamedRail("More in the cards")
+                new Layout {
+                    FlexController = {
+                        FlexDirection = FlexDirection.Column,
+                        AlignItems = Align.Stretch,
+                        Gap = 1.pt
+                    },
+
+                    FlexItem = {
+                        Size = new() { x = 50.pt }
+                    },
+
+                    Children = {
+                        new BsSlider {
+                            FlexItem = { Size = new() { x = 30.pt, y = 6.pt } },
+                            MinValue = 1f,
+                            MaxValue = 4f,
+                            ValueStep = 1f,
+                            Value = blocks.Value,
+                            OnValueChanged = x => blocks.Value = (int)x
+                        }.InNamedRail("Blocks"),
+
+                        new BsToggle {
+                            OnToggleStateChanged = x => wrap.Value = x
+                        }.InNamedRail("Wrap")
+                    }
+                }
             }
         }.Use();
     }
 
-    // Each card is a flex column of its own, measured by the radial controller
+    // Each card is a flex column with a flex row of blocks inside, and the
+    // radial controller measures it like a label
     [StateGen]
-    private static Background CreateCard(int index, IState<bool> expanded) {
+    private static Background CreateCard(
+        int index,
+        IState<int> blocks,
+        IState<bool> wrap
+    ) {
+        var hue = index / (float)ItemCount;
+
         return new Background {
             FlexController = {
                 FlexDirection = FlexDirection.Column,
                 AlignItems = Align.Center,
-                Padding = new() {
-                    top = 1.pt,
-                    bottom = 1.pt,
-                    left = 2.pt,
-                    right = 2.pt
-                },
+                Padding = 1.pt,
                 Gap = 0.5f.pt
             },
 
             Sprite = BeatSaberResources.Sprites.background,
             PixelsPerUnit = 10f,
-            Color = Color.HSVToRGB(index / (float)ItemCount, 0.5f, 0.6f) with {
-                a = 0.6f
-            },
+            Color = Color.HSVToRGB(hue, 0.5f, 0.6f) with { a = 0.6f },
 
             Children = {
                 new Label {
                     Text = (index + 1).ToString(),
-                    FontSize = 3.6f,
-                    Color = Color.HSVToRGB(index / (float)ItemCount, 0.6f, 1f)
+                    FontSize = 3f,
+                    Color = Color.HSVToRGB(hue, 0.6f, 1f)
                 },
 
-                new Label {
-                    FontSize = 2.4f,
-                    Color = Color.white with { a = 0.7f },
-                    sText = expanded.Map(x => x && index == 0
-                        ? "a longer caption"
-                        : "card"
-                    )
-                },
+                // Wrapping only shows once the row has a width to wrap at,
+                // which here fits two blocks
+                new Repeater<int, Background> {
+                    FlexController = {
+                        FlexDirection = FlexDirection.Row,
+                        sFlexWrap = wrap.Map(x => x ? Wrap.Wrap : Wrap.NoWrap),
+                        Gap = 0.5f.pt
+                    },
 
-                new Label {
-                    Text = "details",
-                    FontSize = 2.4f,
-                    Color = Color.white with { a = 0.7f },
-                    sEnabled = expanded.Map(x => x && index == 2)
+                    FlexItem = {
+                        sMaxSize = wrap.Map(x => new YogaVector(
+                            x: x ? 5.pt : YogaValue.Undefined,
+                            y: YogaValue.Undefined
+                        ))
+                    },
+
+                    sItems = blocks.Map(GetBlockIndices),
+                    ConstructCell = _ => new Background {
+                        FlexItem = { Size = 2.pt },
+                        Sprite = BeatSaberResources.Sprites.background,
+                        PixelsPerUnit = 30f,
+                        Color = Color.HSVToRGB(hue, 0.6f, 1f)
+                    }
                 }
             }
         };
+    }
+
+    private static IReadOnlyList<int> GetBlockIndices(int count) {
+        return Enumerable.Range(0, count).ToArray();
     }
 }
 ```
@@ -936,6 +1005,7 @@ class RadialLayoutController : ILayoutController {
     private readonly List<LayoutDimensions> _dimensions = new();
     private float _radius = 10f;
     private Vector2 _size;
+    private Vector2 _bounds;
 
     // No context type, so a parent never stitches this controller into its
     // tree and measures it instead
@@ -999,9 +1069,16 @@ class RadialLayoutController : ILayoutController {
         }
 
         var bounds = max - min;
-        _size = constraints.x > 0f && constraints.y > 0f
-            ? constraints
-            : bounds;
+        var placing = constraints.x > 0f && constraints.y > 0f;
+
+        // A child that changed inside its own tree doesn't make the parent
+        // measure this ring again, so the ring asks for it when its box changes
+        if (placing && bounds != _bounds) {
+            LayoutControllerUpdatedEvent?.Invoke();
+        }
+
+        _bounds = bounds;
+        _size = placing ? constraints : bounds;
 
         // Center the children's box inside the box this controller is given
         var shift = (_size - bounds) / 2f - min;
@@ -1050,8 +1127,8 @@ class RadialLayoutController : ILayoutController {
 </Playground>
 
 
-Each card is a column that sizes itself to its labels. Flip the toggle and one caption gets longer while another card
-shows an extra row, so those cards' trees change and the recalculation they schedule reaches the ring. The ring measures
+Each card is a column that sizes itself to its number and its row of blocks. Move the slider or flip the toggle and
+every row changes shape, so the cards' trees change and the recalculation they schedule reaches the ring. The ring measures
 the cards again and centers each one on the same point of the circle. The card doesn't know it's on a ring, and the ring
 doesn't know the card is a column, since each side only measures and places.
 
@@ -1211,6 +1288,7 @@ class RadialLayoutController : ILayoutController {
     private readonly List<LayoutDimensions> _dimensions = new();
     private float _radius = 10f;
     private Vector2 _size;
+    private Vector2 _bounds;
 
     // No context type, so a parent never stitches this controller into its
     // tree and measures it instead
@@ -1279,9 +1357,16 @@ class RadialLayoutController : ILayoutController {
         }
 
         var bounds = max - min;
-        _size = constraints.x > 0f && constraints.y > 0f
-            ? constraints
-            : bounds;
+        var placing = constraints.x > 0f && constraints.y > 0f;
+
+        // A child that changed inside its own tree doesn't make the parent
+        // measure this ring again, so the ring asks for it when its box changes
+        if (placing && bounds != _bounds) {
+            LayoutControllerUpdatedEvent?.Invoke();
+        }
+
+        _bounds = bounds;
+        _size = placing ? constraints : bounds;
 
         // Center the children's box inside the box this controller is given
         var shift = (_size - bounds) / 2f - min;

@@ -56,10 +56,11 @@ new Background {
 };
 ```
 
-<Screenshot src="/assets/layout/containers-1.png" alt="A background at Unity's default size with a label sitting wherever its rect put it" />
+<Screenshot src="/assets/layout/containers-1.png" alt="A blue background at Unity's default 100 by 100, spilling past the top and bottom of its orange parent" />
 
-The background sits at Unity's default 100 by 100, and the label is wherever its own rect happened to be. Nothing is
-broken, since nothing was asked to lay anything out.
+In these images, the orange panel is the parent and the blue one is the background. The background sits at Unity's
+default 100 by 100 and spills past its parent, and the label is wherever its own rect happened to be. Nothing is broken,
+since nothing was asked to lay anything out.
 
 Give the background a controller, even with a single property set, and both snap into place, as this version shows:
 
@@ -77,7 +78,7 @@ new Background {
 };
 ```
 
-<Screenshot src="/assets/layout/containers-2.png" alt="The background filling its parent with the label centered" />
+<Screenshot src="/assets/layout/containers-2.png" alt="The blue background filling its orange parent exactly, with the label centered" />
 
 This lets you mix laid-out content with things you position by hand, like a knob you drag around or a native Unity object
 with its own anchoring. It also means the layout engine costs nothing for the parts of a screen that don't need it. In
@@ -122,7 +123,7 @@ new Background {
 }.Use(transform);
 ```
 
-<Screenshot src="/assets/layout/roots-2.png" alt="A background exactly the size of its label plus padding, sitting in a larger view" />
+<Screenshot src="/assets/layout/roots-2.png" alt="A blue background exactly the size of its label plus padding, in the middle of a larger orange parent" />
 
 Now the background is the label plus padding, however big the view is. Turn off only one axis and you get, for example, a
 sidebar as wide as its content and as tall as the view. The two flags mean nothing on a flex layout inside another flex

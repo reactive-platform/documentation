@@ -1,7 +1,6 @@
 {
   "title": "Reactive",
   "pages": [
-    "reactive",
-    "sdk"
+    "reactive"
   ]
 }

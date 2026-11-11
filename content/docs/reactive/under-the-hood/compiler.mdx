@@ -1,21 +1,33 @@
 ---
-title: "Source Generator and Analyzers"
-description: "What Reactive.Compiler generates for a binding, where it looks and how to steer it, and the required-property and variadic generators."
+title: "Compiler Internals"
+description: "What the Reactive compiler generates for a binding, how it picks the callback, handles generic types and differs between Debug and Release, and the checks it adds to your build."
 ---
 
-## What a binding is
+## Binding generator
 
-`Reactive.Compiler` is a Roslyn source generator and a set of analyzers. It is referenced as an analyzer, so it runs
-inside the C# compiler rather than at runtime. Most of what it does is the `s`-properties from
-[Property Bindings](/docs/reactive/state/bindings). This is what one of them actually is.
+### Generated code
 
-When the generator sees `sText = <state>` in an object initializer of a `Label`, and `sText` doesn't resolve to any
-real member, it looks for a `Text` property on `Label` with a setter and emits this into your assembly:
+The Reactive compiler is a Roslyn source generator with a set of analyzers, and it runs inside the C# compiler, so none
+of it ships with your mod. [Property Bindings](/docs/reactive/state/bindings) covers how to use the s-properties and
+where the generator looks for them, while this page shows what it writes and why. The generated code explains most of
+how bindings behave, from why they never keep their targets alive to why they only exist where you use them. Consider a
+label bound to a state:
+
+```csharp
+var text = Remember("Hello");
+
+new Label {
+    sText = text
+};
+```
+
+Nothing in the library defines `sText`, so the generator adds it to your assembly, shown here with the namespaces
+shortened:
 
 ```csharp
 [EditorBrowsable(EditorBrowsableState.Never)]
 [GeneratedCode("Reactive_StateGenerator", "1.0")]
-internal static class Reactive_Label_StateGenExt {
+internal static class Reactive_Reactive_BeatSaber_Components_Label_StateGenExt {
     extension(Label obj) {
         [SetsRequired(Names = ["Text"])]
         public StateBinder<string, IState<string>> sText {
@@ -27,72 +39,292 @@ internal static class Reactive_Label_StateGenExt {
 }
 ```
 
-A binding is a state callback that sets the property. What the generator adds is doing it the same careful way every
-time. The lambda is static and the target is an argument, so binding doesn't allocate a closure and the callback
-doesn't keep the target alive. The callback is tied to the target's lifetime through the overload it picks:
-`AddCallback` for components and anything else that implements `ILifetimeProvider`, `AddCallbackUnity` for Unity
-objects, and `AddCallbackWeak` for everything else. A modifier or a transform bound to a state therefore never keeps
-growing the state's subscriber list. The property is set once on assignment, before the subscription starts waiting
-for changes, and that is `StateBinder`'s job. It is a small `ref struct` on the left-hand side that a state converts
-to implicitly. It holds the state and a flag for lazy application, and performs the subscription when the generated
-setter asks. The conversion is also why `.In()` exists. C# won't apply a user-defined conversion from an interface
-type, so a parameter typed `IState<T>` needs an explicit wrap, and `.InLazy()` sets the lazy flag.
+Each piece of this is a decision. Because the class is internal, two mods that both bind `Label.Text` each get their own
+copy, and neither adds anything to its public API. It's named after the type's full name, so two types called `Label` in
+different namespaces never collide, and it's hidden from completion, which leaves only the property itself to suggest.
+The setter subscribes a static lambda and passes the target as an argument, so a binding never allocates a closure, and
+the lambda never holds the target on its own. `[SetsRequired]` ties into [required properties](#required-properties),
+covered further down.
 
-The extension is generated into the assembly that uses the binding, one class per bound type. That is why the
-property, its type and the receiver all have to be visible from that assembly. A property is bindable when it has a
-non-`init` setter, isn't static or an indexer, and isn't marked `[RawState]`. A raw state opts out because it wants
-the state object itself rather than its values. The `RawStateAnalyzer` reports `RV021` as a reminder that subscribing
-is now the owner's job, and `RV022` if the property isn't typed as an `IState<T>`.
+A class that declares a real `sText` keeps it, since the generator only binds names that don't resolve to anything. When
+the pattern matches, the property it points to also has to meet a few rules:
 
-## Where it looks and how to steer it
+- It has a setter, and the setter isn't `init`-only.
+- It isn't static or an indexer.
+- It belongs to a class, since a binding on a struct would set a copy.
+- Its type, its setter and the type that declares it are visible from your assembly.
+- It isn't marked `[RawState]`.
 
-The generator only looks at object initializers inside members marked `[StateGen]`. `Construct` carries the attribute,
-and overrides inherit it, so inside `Construct` bindings just exist. A helper method that builds part of a tree needs
-the attribute itself. The patterns it matches default to `s{}`, with `{}` standing for the property name, and both can
-be changed.
+The visibility rule exists because the generated class can't see everything the initializer sees, like the private
+members of the type the initializer sits in. A `[RawState]` property takes the state object itself instead of its
+values, so subscribing becomes its owner's job.
+
+### Callbacks
+
+The target still has to be held somewhere, and how it's held decides when the binding stops. The generator picks one of
+three overloads by the type that declares the property, in this order:
 
 ```csharp
-[StateGen(Patterns = ["state_{}", "st{}"])]
-protected override GameObject Construct() { ... }
+public static string GetBinderMethod(ITypeSymbol symbol) {
+    if (IsUnityObject(symbol)) {
+        return "AddCallbackUnity";
+    }
 
-[StateGen(Enabled = false)]
-protected override GameObject Construct() { ... }
+    // Anything else without a lifetime lives as long as it's referenced
+    return IsLifetimeProvider(symbol) ? "AddCallback" : "AddCallbackWeak";
+}
 ```
 
-A pattern without an identifier around the `{}` is reported as `RV001` or `RV002`, because it couldn't be matched
-unambiguously. The `GeneratedBindingAnalyzer` reports `RV041` when a generated binding is used somewhere that doesn't
-generate it, outside an initializer or in a member without the attribute. Such a usage only compiles while some other
-usage happens to generate the same property, and it breaks the moment that other usage changes.
+`IsUnityObject` walks the base types looking for `UnityEngine.Object`, and `IsLifetimeProvider` looks for
+`ILifetimeProvider` among the interfaces:
 
-Generation is driven by usage, so a Release build contains only the bindings that are assigned somewhere. In Debug,
-the generator reads the build configuration and pre-generates a binding for every settable property of every type
-you initialize, so completion can suggest `sText` before you have typed it. For that it needs the configuration to be
-visible to the compiler, which is what `<CompilerVisibleProperty Include="Configuration" />` in the project file is
-for. The NuGet package adds it through its `.props`. A project reference needs it spelled out.
+- `AddCallbackUnity` serves Unity objects, which can be destroyed while something still references them, so the
+  callback checks that the object is alive and removes itself once it's destroyed.
+- `AddCallback` serves anything with `ILifetimeProvider`, which every component implements, and removes itself the
+  first time the component reports it's no longer alive.
+- `AddCallbackWeak` serves everything else, like a modifier or a plain class, which has no lifetime to ask about. It
+  holds the target through a weak reference, so the binding never keeps it alive and goes away once it's collected.
 
-## Required properties and the other generators
+A binding therefore ends with its target in every case, and a state shared across screens doesn't collect callbacks for
+objects that are long gone.
 
-`[Required]` on a property makes every object initializer of that type have to set it. It does what the `required`
-keyword does, with one difference. The keyword forbids a type with required members from satisfying a `new()`
-constraint, and Reactive's pools and repeaters create components through exactly that constraint. `Repeater` uses the
-attribute for `Items` and `ConstructCell`, so forgetting either is a build error, `RV102`, rather than a null at
-runtime. The `RequiredCtorGenerator` adds a public parameterless constructor to any type with required properties so
-the constraint stays satisfiable, and reports `RV107` if you declared a conflicting one. `RV105` and `RV106` reject
-required properties that are static or declared in a static class, where the concept doesn't apply.
+### Generics
 
-Generated bindings carry `[SetsRequired(Names = ["Text"])]`. That is how `sItems = names` counts as setting `Items` for
-the required check. You can put the same attribute on an extension property of your own that initializes a required
-member on the receiver's behalf. `RV103` reports a name that doesn't exist on the target, and `RV104` a property that
-is both required and sets required members, which can't be both.
+Bindings are grouped by the generic definition of a type rather than by each constructed type. Take two repeaters with
+different item and cell types, both binding their items:
 
-Two more generators are used by the library itself and available to you. `[NoStateCapture]` marks a delegate
-parameter whose lambdas must receive states as arguments instead of capturing them. `RememberDerived` and
-`DerivedState` mark their function parameter with it. The `StateCaptureAnalyzer` walks each lambda body for references
-to states declared outside it and reports them as `RV061`. A derived state that would silently miss a dependency
-becomes a build warning instead. `[VariadicGen]` generates versions of a method or type for two up to N of a growing
-element, from the version for one, using patterns like `"IState<T{}> state{}"` to say which parameters and members
-grow. `RememberDerived` and `DerivedState` are written once for a single state and generated up to eight. That is why
-the overloads are identical, and why the eighth works exactly like the first. The `MemberAntipatternAnalyzer` warns
-with `RV201` when a component exposes a public method and with `RV202` when it exposes a public event, since neither can
-be set in an initializer or bound to a state. Every diagnostic, with its fix, is listed on
-[Compiler Diagnostics](/docs/reactive/reference/compiler-diagnostics).
+```csharp
+new Repeater<string, Label> {
+    sItems = names,
+    ConstructCell = x => new Label()
+};
+
+new Repeater<int, Image> {
+    sItems = scores,
+    ConstructCell = x => new Image()
+};
+```
+
+Both assignments go through one extension. The generator redeclares the type's parameters and constraints on the
+extension block and writes the property's type in terms of them, so `sItems` takes a state of whatever list the repeater
+holds:
+
+```csharp
+internal static class Reactive_Reactive_Components_Repeater_TItem_TCell__StateGenExt {
+    extension<TItem, TCell>(Repeater<TItem, TCell> obj)
+        where TCell : class, IReactiveComponent {
+        [SetsRequired(Names = ["Items"])]
+        public StateBinder<IReadOnlyList<TItem>, IState<IReadOnlyList<TItem>>> sItems {
+            set {
+                value.AddCallback(obj, static (x, y) => x.Items = y);
+            }
+        }
+    }
+}
+```
+
+One extension per definition keeps the generated code the same size however many ways a type is used, and C# fills in
+`TItem` and `TCell` at each use. Properties declared in a generic extension block of your own work the same way, with
+the block's receiver standing in for the type.
+
+### Debug and Release
+
+The same code generates different output in the two configurations. In Release, generation follows usage, so only a
+property assigned through a pattern somewhere gets a binding, and the label from the first example gets `sText` and
+nothing else. In Debug, the generator writes a binding for every bindable property of every type initialized in a
+`[StateGen]` member, so the same label built in Debug gets this, cut down here to three of its fourteen bindings:
+
+```csharp
+internal static class Reactive_Reactive_BeatSaber_Components_Label_StateGenExt {
+    extension(Label obj) {
+        public StateBinder<string, IState<string>> sText {
+            set { value.AddCallback(obj, static (x, y) => x.Text = y); }
+        }
+
+        public StateBinder<float, IState<float>> sFontSize {
+            set { value.AddCallback(obj, static (x, y) => x.FontSize = y); }
+        }
+
+        public StateBinder<Color, IState<Color>> sColor {
+            set { value.AddCallback(obj, static (x, y) => x.Color = y); }
+        }
+
+        // Eleven more, from sRichText to sRaycastTarget
+    }
+}
+```
+
+Inherited members are covered too, in a class of their own for `ReactiveComponent`, which adds `sEnabled`, `sName` and
+three more.
+
+The reason is completion. An IDE only suggests members that exist, so with usage alone `sText` would appear only after
+you'd typed it correctly, and Debug pre-generates everything so the list is there as you type. Those extra bindings are
+internal and unused, so Release leaves them out and ships only what the mod actually binds.
+
+## Required properties
+
+A component can depend on a property that has no sensible default, like a repeater's items or the function that builds
+its cells, and leaving one out would only show up as an exception in the game. Marking such a property with `[Required]`
+moves that mistake to the build, since every object initializer of the type then has to set it. Repeaters and tables
+mark both of those properties this way, so a repeater that has its items but no way to build cells fails the build:
+
+<CompileExample status="error" output="App.cs(5,20): error RV102: Required property 'ConstructCell' must be initialized">
+```csharp
+class App : ReactiveComponent {
+    protected override GameObject Construct() {
+        var names = Remember<IReadOnlyList<string>>(["Ada", "Grace"]);
+
+        return new Repeater<string, Label> {
+            sItems = names
+        }.Use();
+    }
+}
+```
+</CompileExample>
+
+The same repeater with a way to build its cells compiles:
+
+<CompileExample status="compiles">
+```csharp
+class App : ReactiveComponent {
+    protected override GameObject Construct() {
+        var names = Remember<IReadOnlyList<string>>(["Ada", "Grace"]);
+
+        return new Repeater<string, Label> {
+            sItems = names,
+            ConstructCell = x => new Label {
+                sText = x.Map(y => y.Item)
+            }
+        }.Use();
+    }
+}
+```
+</CompileExample>
+
+`sItems` counts as setting `Items` here because of the `[SetsRequired]` on the generated binding, and you can put the
+same attribute on an extension property of your own that sets a required member for its receiver.
+
+The check would mean little if generic code could still create the type with `new T()`, which sets nothing at all. So
+for every type with required properties, a second generator writes a constructor that takes the place of the implicit
+parameterless one. Take a component with a required title:
+
+```csharp
+partial class Badge : ReactiveComponent {
+    [Required]
+    public string Title { get; set; } = null!;
+
+    protected override GameObject Construct() { ... }
+}
+```
+
+The generator adds this constructor to it, again with the namespaces shortened:
+
+```csharp
+partial class Badge {
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [GeneratedCode("Reactive_RequiredCtorGenerator", "1.0")]
+    public Badge(Nothing _ = default) { }
+}
+```
+
+`new Badge { Title = "Hi" }` still compiles, since the parameter is optional, but the type no longer has a parameterless
+constructor. It can't satisfy a `new()` constraint anymore, so not even a pool can create it with its required
+properties unset, and the generated constructor is also why such a type has to be `partial`.
+
+When a type should work with `new()`, you can write a public parameterless constructor yourself, and the analyzer then
+checks which required properties it sets. This one leaves the title out:
+
+<CompileExample status="error" output="App.cs(3,12): error RV107: Required property 'Title' must be initialized">
+```csharp
+partial class Badge : ReactiveComponent {
+    // Makes the type work with new() again
+    public Badge() { }
+
+    [Required]
+    public string Title { get; set; } = null!;
+
+    protected override GameObject Construct() {
+        return new Label { Text = Title }.Use();
+    }
+}
+```
+</CompileExample>
+
+Generic code could now create this badge through `new T()` without a title, so the build stops at the constructor.
+Setting the title there makes the constructor complete, and the type works with `new()` again:
+
+<CompileExample status="compiles">
+```csharp
+partial class Badge : ReactiveComponent {
+    // Makes the type work with new() again
+    public Badge() {
+        Title = "Untitled";
+    }
+
+    [Required]
+    public string Title { get; set; } = null!;
+
+    protected override GameObject Construct() {
+        return new Label { Text = Title }.Use();
+    }
+}
+```
+</CompileExample>
+
+The rest of the checks catch misuse, like a `[SetsRequired]` that names a member that doesn't exist, a property that's
+both required and sets required members, or a required property that's static.
+
+## Variadic generator
+
+C# can't declare a method over any number of generic arguments, so code that combines states of different types needs an
+overload for each count. Written by hand, those overloads are the same code copied with one more state each time, and a
+fix made in one of them is easily missed in the others. `[VariadicGen]` writes them from the version for one, so there's
+only ever one to maintain. Here's a helper that runs a callback when a state changes, with every part that grows listed
+as a pattern:
+
+```csharp
+public static partial class StateTools {
+    [VariadicGen(
+        3,
+        "T{}",
+        "IState<T{}> state{}",
+        "state{}.AddCallback(_ => onChange())"
+    )]
+    public static void OnAnyChange<T1>(IState<T1> state1, Action onChange) {
+        state1.AddCallback(_ => onChange());
+    }
+}
+```
+
+Each pattern names a part that repeats, with `{}` standing for its index, here the type parameter, the state parameter
+and the line that subscribes to it. Anything that matches no pattern, like the callback parameter, appears once. The
+generator adds the other overloads to the class, up to the three states the first argument asks for:
+
+```csharp
+static partial class StateTools {
+    public static void OnAnyChange<T1, T2>(
+        IState<T1> state1,
+        IState<T2> state2,
+        Action onChange
+    ) {
+        state1.AddCallback(_ => onChange());
+        state2.AddCallback(_ => onChange());
+    }
+
+    public static void OnAnyChange<T1, T2, T3>(
+        IState<T1> state1,
+        IState<T2> state2,
+        IState<T3> state3,
+        Action onChange
+    ) {
+        state1.AddCallback(_ => onChange());
+        state2.AddCallback(_ => onChange());
+        state3.AddCallback(_ => onChange());
+    }
+}
+```
+
+`OnAnyChange(name, score, ...)` then picks the overload for two states like any other call. The class has to be
+`partial` and top-level, since the overloads arrive from another file. The library builds `RememberDerived` and
+`DerivedState` the same way, written once for a single state and generated for up to eight, which is why the eighth
+overload behaves exactly like the first.

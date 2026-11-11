@@ -148,9 +148,9 @@
   "interpolators": {"page": "/docs/reactive/animation/animated-states", "index": 4, "asset": "animation/interpolators.webp", "fps": 30, "steps": [
     ["wait", 400], ["click", "BsTextButton", 0], ["wait", 1800], ["click", "BsTextButton", 0], ["wait", 1800]] },
   "repeater": {"page": "/docs/reactive/lists/lists", "index": 0, "asset": "lists/repeater.webp", "steps": [
-    ["wait", 600], ["click", "BsTextButton", 0], ["wait", 800], ["click", "BsTextButton", 0], ["wait", 800],
-    ["click", "BsTextButton", 1], ["wait", 650], ["click", "BsTextButton", 1], ["wait", 650],
-    ["click", "BsTextButton", 1], ["wait", 900]] },
+    ["wait", 700], ["click", "BsTextButton", 0], ["wait", 650], ["click", "BsTextButton", 0], ["wait", 650], ["click", "BsTextButton", 0], ["wait", 650], ["click", "BsTextButton", 0], ["wait", 650],
+    ["click", "BsTextButton", 1], ["wait", 550], ["click", "BsTextButton", 1], ["wait", 550], ["click", "BsTextButton", 1], ["wait", 550], ["click", "BsTextButton", 1], ["wait", 550], ["click", "BsTextButton", 1], ["wait", 550], ["click", "BsTextButton", 1], ["wait", 550],
+    ["click", "BsTextButton", 0], ["wait", 650], ["click", "BsTextButton", 0], ["wait", 650], ["wait", 800]] },
   "table": {"page": "/docs/reactive/lists/lists", "index": 2, "asset": "lists/table.webp", "steps": [
     ["wait", 600], ["scroll", "Table`2", 0, -120], ["wait", 150], ["scroll", "Table`2", 0, -120], ["wait", 150],
     ["scroll", "Table`2", 0, -120], ["wait", 150], ["scroll", "Table`2", 0, -120], ["wait", 150],

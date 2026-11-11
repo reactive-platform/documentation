@@ -5,22 +5,22 @@ description: Every warning and error Reactive.Compiler reports, and what to do a
 
 The Reactive compiler runs inside the C# compiler and reports these as build diagnostics. The ids are grouped by
 feature: `RV0xx` for state bindings, `RV1xx` for required properties and `RV2xx` for component design.
-[Compiler Internals](/docs/reactive/under-the-hood/compiler) explains what it generates, and this page is
-only the messages.
+[Compiler Internals](/docs/reactive/under-the-hood/compiler) explains what it generates, and this page is only the
+messages, written as the build prints them with 'name' standing for the member it reports.
 
-| Id | Message | Fix |
-| --- | --- | --- |
-| `RV001` | Incomplete pattern | A `[StateGen(Patterns = ...)]` entry has no rule. Every pattern needs a `{}` and an identifier around it, like `s{}` or `state_{}`. |
-| `RV002` | Invalid pattern | Same as above, but the pattern has the wrong shape. |
-| `RV021` | Property is a raw state | Informational. A `[RawState]` property receives the state object itself, so binding and unbinding it is your job. |
-| `RV022` | Raw states must be `IState<T>` | A `[RawState]` property has to be typed as `IState<T>` (or a type implementing it). |
-| `RV041` | Generated binding used outside its generation context | An s-property is used somewhere that doesn't generate it, so it only exists because another usage did. Assign the state inside an object initializer in a `[StateGen]` member instead. |
-| `RV061` | State is captured instead of being passed as a dependency | A lambda given to `RememberDerived` (or another `[NoStateCapture]` parameter) reads a state from outside. Add the state to the argument list and take it as a parameter, or the result won't follow it. |
-| `RV102` | Required property must be initialized | An object initializer is missing a `[Required]` property. Set it, or bind its s-version, which counts. |
-| `RV103` | Shadowed property doesn't exist | `[SetsRequired(Names = [...])]` names a property the target type doesn't have. |
-| `RV104` | Property is required and sets required members | A property can be one or the other, not both. |
-| `RV105` | Static property cannot be required | Remove `[Required]` from the static property. |
-| `RV106` | Property in a static class cannot be required | Same. |
-| `RV107` | Required properties must be initialized in a public parameterless constructor | A type with `[Required]` properties needs a public parameterless constructor, which the generator adds unless you declared a different one. Remove yours or make it parameterless and public. |
-| `RV201` | Reactive component exposes a public method | A method can't be set in an initializer or bound to a state. Expose its effect as a property whose setter does the work. Static methods, overrides and interface members are left alone. |
-| `RV202` | Reactive component exposes a public event | An event can't be set in an initializer either. Declare it as a delegate property instead, like `OnClick`. |
+| Id | Severity | Message | Fix |
+| --- | --- | --- | --- |
+| `RV001` | Error | Pattern '`{}`' is incomplete. You should specify a rule to match. | A `[StateGen(Patterns = [...])]` entry is only the placeholder. Put an identifier around it, like `s{}` or `state_{}`. |
+| `RV002` | Error | Pattern 'name' is not valid. It should contain an identifier and a `{}` to match, e.g. '`state_{}`' or '`{}State`'. | The pattern doesn't have exactly one `{}`, for example when it's empty or has two. Both pattern checks only read patterns written as a collection expression. |
+| `RV021` | Info | Property 'name' is a raw state and won't be used by the state generator. Please note that by defining a raw state you take the responsibility of binding and unbinding passed state objects properly. | A `[RawState]` property receives the state object itself, so binding and unbinding it is your job. |
+| `RV022` | Error | Defining a raw state requires the property to implement `IState<T>` | A `[RawState]` property has to be typed as `IState<T>` or a type implementing it. |
+| `RV041` | Error | 'name' is a generated binding, but this usage doesn't generate it, so it depends on another usage to exist. Assign a state to it inside an object initializer of a `[StateGen]` member instead. | The s-property only exists because another usage generated it. Assign the state inside an object initializer in a `[StateGen]` member instead. |
+| `RV061` | Warning | 'name' is a state captured by the closure, pass it as a dependency instead so its changes are tracked | A lambda given to `RememberDerived` (or another `[NoStateCapture]` parameter) reads a state from outside. Add the state to the argument list and take it as a parameter, or the result won't follow it. |
+| `RV102` | Error | Required property 'name' must be initialized | An object initializer is missing a `[Required]` property. Set it, or bind its s-version, which counts because the generated s-property names its property in `[SetsRequired]`. |
+| `RV103` | Error | Property 'name' doesn't exist in type 'type' | `[SetsRequired(Names = [...])]` names something that isn't a `[Required]` property of the target type, either because the type doesn't have it or because it isn't required. |
+| `RV104` | Error | 'name' property is required and sets required members which is not allowed | A property can be one or the other, not both. |
+| `RV105` | Error | Static property 'name' cannot be required | Remove `[Required]` from the static property. |
+| `RV106` | Error | Property 'name' declared in a static class hence cannot be required | Same. |
+| `RV107` | Error | Required property 'name' must be initialized | A parameterless constructor you wrote, public or internal, doesn't assign this required property. Assign it there or remove the constructor, since the generator already adds one that keeps `new()` constraints working. |
+| `RV201` | Warning | 'name' is a public method of a reactive component. Expose its effect as a property instead. | A method can't be set in an initializer or bound to a state, so expose its effect as a property whose setter does the work. Static members, overrides and interface members aren't reported, here or for `RV202`. |
+| `RV202` | Warning | 'name' is a public event of a reactive component. Declare it as a delegate property instead. | An event can't be set in an initializer either. Declare it as a delegate property instead, like `OnClick`. |

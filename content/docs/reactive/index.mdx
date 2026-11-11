@@ -9,7 +9,7 @@ no code-behind, nothing to refresh by hand.
 
 The whole idea fits in one component. A label shows a number, and a button increments it:
 
-<Playground showCode preview="/assets/intro/counter.gif">
+<Playground showCode preview="/assets/intro/counter.webp">
 ```csharp
 class Counter : ReactiveComponent {
     protected override GameObject Construct() {
@@ -19,6 +19,7 @@ class Counter : ReactiveComponent {
             FlexController = {
                 FlexDirection = FlexDirection.Column,
                 AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
                 Gap = 2.pt
             },
 
@@ -50,51 +51,586 @@ harder the more the UI has to change while it's open.
 ### Reactivity
 
 In BSML, a value that changes needs a `[UIValue]` property and a `NotifyPropertyChanged` call in every setter that
-affects it. In Reactive you bind once. Here the line at the bottom follows the slider with nothing else to write.
+affects it. In Reactive you bind once. Here one volume state drives the percentage, the meter, the slider and the
+warning below it, and none of them knows about the others:
 
-<Screenshot src="/assets/intro/coming-from-bsml.gif" alt="A settings panel whose volume text updates as the slider moves" />
+<Playground preview="/assets/intro/reactivity.webp" alt="A volume panel where dragging the slider changes the percentage, lights a meter from green to red and switches the warning below">
+```csharp
+class VolumePanel : ReactiveComponent {
+    private const int Bars = 12;
 
-### Lists
+    protected override GameObject Construct() {
+        var volume = Remember(30f);
 
-BSML's `macro.for-each` runs once, when the markup is parsed. A [Repeater](/docs/reactive/lists/lists) keeps one row
-per item for as long as the items change, reuses the rows it already has, and keeps track of which ones are selected.
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center
+            },
 
-<Screenshot src="/assets/lists/selection.gif" alt="A list of difficulties with several selected, and a line below listing the current selection" />
+            Children = {
+                new Background {
+                    FlexController = {
+                        FlexDirection = FlexDirection.Column,
+                        AlignItems = Align.Center,
+                        Gap = 1.5f.pt,
+                        Padding = 3.pt
+                    },
+
+                    FlexItem = {
+                        Size = new() { x = 60.pt }
+                    },
+
+                    Sprite = BeatSaberResources.Sprites.background,
+                    PixelsPerUnit = 10f,
+                    Color = Color.white with { a = 0.06f },
+
+                    Children = {
+                        new Layout {
+                            FlexController = {
+                                JustifyContent = Justify.SpaceBetween,
+                                AlignItems = Align.Center
+                            },
+
+                            FlexItem = {
+                                Size = new() { x = 100.pct }
+                            },
+
+                            Children = {
+                                new Label {
+                                    Text = "Volume",
+                                    FontSize = 4f
+                                },
+
+                                new Label {
+                                    FontSize = 6f,
+                                    sText = volume.Map(x => $"{x:0}%")
+                                }
+                            }
+                        },
+
+                        new Repeater<int, Background> {
+                            FlexController = {
+                                FlexDirection = FlexDirection.Row,
+                                AlignItems = Align.FlexEnd,
+                                Gap = 1.pt
+                            },
+
+                            FlexItem = {
+                                Size = new() { y = 14.pt }
+                            },
+
+                            Items = Enumerable.Range(0, Bars).ToArray(),
+                            ConstructCell = x => CreateBar(volume, index: x.Item)
+                        },
+
+                        new BsSlider {
+                            FlexItem = {
+                                Size = new() { x = 100.pct, y = 6.pt }
+                            },
+
+                            MinValue = 0f,
+                            MaxValue = 100f,
+                            ValueStep = 1f,
+                            sValue = volume,
+                            OnValueChanged = x => volume.Value = x
+                        },
+
+                        new Label {
+                            FontSize = 4f,
+                            sText = volume.Map(x => x switch {
+                                0f => "Muted",
+                                < 40f => "Quiet",
+                                < 75f => "Comfortable",
+                                < 90f => "Loud",
+                                _ => "Too loud!"
+                            }),
+                            sColor = volume.Map(x => x >= 90f
+                                ? new Color(1f, 0.4f, 0.4f)
+                                : Color.white with { a = 0.6f }
+                            )
+                        }
+                    }
+                }
+            }
+        }.Use();
+    }
+
+    // A bar lights up once the volume passes its share, from green at the
+    // bottom to red at the top
+    [StateGen]
+    private static Background CreateBar(IState<float> volume, int index) {
+        var lit = Color.HSVToRGB(
+            h: 0.33f * (1f - index / (Bars - 1f)),
+            s: 0.7f,
+            v: 1f
+        );
+
+        return new Background {
+            FlexItem = {
+                Size = new() { x = 3.5f.pt, y = (4f + index * 0.85f).pt }
+            },
+
+            Sprite = BeatSaberResources.Sprites.background,
+            PixelsPerUnit = 20f,
+            sColor = volume.Map(x => x > index * 100f / Bars
+                ? lit
+                : Color.white with { a = 0.1f }
+            )
+        };
+    }
+}
+```
+</Playground>
+
+### Layout
+
+Layout uses [flexbox](/docs/reactive/layout/yoga), the same model as the web, and when flexbox isn't enough, you can
+[write your own controllers](/docs/reactive/layout/custom). Drag this slider to see blocks of different sizes wrap
+onto new rows and grow to fill them, which BSML's layout groups can't do:
+
+<Playground preview="/assets/layout/flex-wrap.webp" alt="Blocks of different sizes wrapping onto new rows and stretching to fill them as a slider narrows the panel">
+```csharp
+class WrappingBlocks : ReactiveComponent {
+    private static readonly (Color color, float width)[] Blocks = [
+        (new Color(0.35f, 0.75f, 1f), 16f),
+        (new Color(1f, 0.55f, 0.75f), 9f),
+        (new Color(1f, 0.6f, 0.3f), 19f),
+        (new Color(0.6f, 0.9f, 0.45f), 11f),
+        (new Color(0.7f, 0.55f, 1f), 12f),
+        (new Color(1f, 0.85f, 0.35f), 24f)
+    ];
+
+    protected override GameObject Construct() {
+        var width = Remember(90f);
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 2.pt
+            },
+
+            Children = {
+                new BsSlider {
+                    FlexItem = { Size = new() { x = 40.pt, y = 6.pt } },
+                    MinValue = 40f,
+                    MaxValue = 90f,
+                    ValueStep = 1f,
+                    sValue = width,
+                    OnValueChanged = x => width.Value = x
+                },
+
+                new Background {
+                    FlexController = {
+                        Padding = 1.pt
+                    },
+
+                    FlexItem = {
+                        sSize = width.Map(x => new YogaVector(
+                            x: x.pt,
+                            y: YogaValue.Auto
+                        ))
+                    },
+
+                    Sprite = BeatSaberResources.Sprites.background,
+                    PixelsPerUnit = 10f,
+                    Color = Color.white with { a = 0.08f },
+
+                    Children = {
+                        new Repeater<(Color color, float width), Background> {
+                            FlexController = {
+                                FlexDirection = FlexDirection.Row,
+                                FlexWrap = Wrap.Wrap,
+                                AlignItems = Align.Stretch,
+                                Gap = 1.pt
+                            },
+
+                            FlexItem = {
+                                FlexGrow = 1f
+                            },
+
+                            Items = Blocks,
+                            ConstructCell = x => CreateBlock(
+                                x.Item.color,
+                                width: x.Item.width
+                            )
+                        }
+                    }
+                }
+            }
+        }.Use();
+    }
+
+    private static Background CreateBlock(Color color, float width) {
+        return new Background {
+            FlexItem = {
+                Size = new() { x = width.pt, y = 8.pt },
+                FlexGrow = 1f
+            },
+
+            Sprite = BeatSaberResources.Sprites.background,
+            PixelsPerUnit = 10f,
+            Color = color
+        };
+    }
+}
+```
+</Playground>
 
 ### Animations
 
 BSML has no animations of its own, so you write the loop yourself. Reactive can animate both a value and a target. An
 [animated state](/docs/reactive/animation/animated-states) eases a value toward its new one, and anything bound to it
 follows. An [animation player](/docs/reactive/animation/players) plays an animation on a target, like fading, scaling
-or spinning a component.
+or spinning a component. Try this grid, where each tile eases its scale and color as a wave runs across it:
 
-<Screenshot src="/assets/animation/curves.gif" alt="Five dots sliding along their tracks, each on a different easing curve" />
+<Playground preview="/assets/animation/showcase.webp" alt="A grid of tiles that pop and change color as a wave runs across them">
+```csharp
+class TileWave : ReactiveComponent {
+    private const int Columns = 9;
+    private const int Rows = 4;
+    private const float TileSize = 6f;
+    private const float Period = 1.6f;
 
-### Flexboxes
+    private class Tile {
+        public int X;
+        public int Y;
+        public AnimatedState<float> Scale = null!;
+        public AnimatedState<Color> Color = null!;
+        public int Wave = -1;
+    }
 
-Layout uses [flexbox](/docs/reactive/layout/yoga), the same model as the web. Items of different sizes wrap onto new
-rows and grow to fill them as space changes, which BSML's layout groups can't do. When flexbox isn't enough, you can
-[write your own controllers](/docs/reactive/layout/custom).
+    private readonly List<Tile> _tiles = new();
+    private float _time;
 
-<Screenshot src="/assets/layout/flex-wrap.gif" alt="Blocks of different sizes wrapping onto new rows and stretching to fill them as a slider narrows the panel" />
+    protected override GameObject Construct() {
+        for (var y = 0; y < Rows; y++) {
+            for (var x = 0; x < Columns; x++) {
+                _tiles.Add(CreateTileState(x, y));
+            }
+        }
+
+        return new Layout {
+            FlexController = {
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center
+            },
+
+            Children = {
+                new Repeater<int, Repeater<Tile, Background>> {
+                    FlexController = {
+                        FlexDirection = FlexDirection.Column,
+                        Gap = 1.5f.pt
+                    },
+
+                    Items = Enumerable.Range(0, Rows).ToArray(),
+                    ConstructCell = row => new Repeater<Tile, Background> {
+                        FlexController = {
+                            FlexDirection = FlexDirection.Row,
+                            Gap = 1.5f.pt
+                        },
+
+                        Items = _tiles.Where(x => x.Y == row.Item).ToArray(),
+                        ConstructCell = x => CreateTile(
+                            scale: x.Item.Scale,
+                            color: x.Item.Color
+                        )
+                    }
+                }
+            }
+        }.Use();
+    }
+
+    private Tile CreateTileState(int x, int y) {
+        var tile = new Tile {
+            X = x,
+            Y = y,
+            Scale = RememberAnimated(
+                1f,
+                150.ms,
+                AnimationCurve.EaseOutCubic
+            ),
+            Color = RememberAnimated(
+                ColorAt(x, y, 1),
+                220.ms,
+                AnimationCurve.EaseOutCubic
+            )
+        };
+
+        // Settles back with an overshoot once the pop is done
+        var scale = tile.Scale;
+        scale.OnFinish = value => {
+            if (value > 1.01f) {
+                scale.Timing = 500.ms;
+                scale.Curve = AnimationCurve.EaseOutBack;
+                scale.TargetValue = 1f;
+            }
+        };
+
+        return tile;
+    }
+
+    protected override void OnUpdate() {
+        _time += Time.deltaTime;
+
+        var wave = Mathf.FloorToInt(_time / Period);
+        var local = _time - wave * Period;
+
+        foreach (var tile in _tiles) {
+            if (tile.Wave == wave || local < (tile.X + tile.Y) * 0.06f) {
+                continue;
+            }
+
+            tile.Wave = wave;
+            tile.Scale.Timing = 150.ms;
+            tile.Scale.Curve = AnimationCurve.EaseOutCubic;
+            tile.Scale.TargetValue = 1.45f;
+            tile.Color.TargetValue = ColorAt(tile.X, tile.Y, wave);
+        }
+    }
+
+    private static Color ColorAt(int x, int y, int wave) {
+        var hue = ((x + y) * 0.035f + (wave % 2) * 0.3f) % 1f;
+        return Color.HSVToRGB(hue, 0.6f, 1f);
+    }
+
+    [StateGen]
+    private static Background CreateTile(
+        IState<float> scale,
+        IState<Color> color
+    ) {
+        return new Background {
+            FlexItem = {
+                Size = TileSize.pt
+            },
+
+            ContentTransform = {
+                slocalScale = scale.Map(x => Vector3.one * x)
+            },
+
+            Sprite = BeatSaberResources.Sprites.background,
+            PixelsPerUnit = 20f,
+            sColor = color.In()
+        };
+    }
+}
+```
+</Playground>
+
+### Performance
+
+BSML parses its markup on every mount, and its `custom-list` parses a new cell for each row that comes into view. A
+[Table](/docs/reactive/lists/lists#tables-and-scrolling) reuses its cells instead. In our PC benchmarks, jumping far
+through a table of 100000 rows is 16 times faster, and mounting is 2.8 to 7.8 times faster. Below you can see the
+buttons jump through 100000 rows, all drawn by the few cells that fit on screen:
+
+<Playground preview="/assets/intro/performance.webp" alt="Buttons scrolling a table of 100000 rows to row 50000, the end and back, drawn by the same 17 cells throughout">
+```csharp
+class Leaderboard : ReactiveComponent {
+    private const int RowCount = 100000;
+
+    private static readonly (string text, int row)[] Jumps = [
+        ("Top", 0),
+        ("25,000", 24999),
+        ("50,000", 49999),
+        ("End", RowCount - 1)
+    ];
+
+    private static readonly string[] Names = [
+        "Nova", "Kite", "Ember", "Rook", "Vex", "Lumen", "Pike", "Sable",
+        "Quill", "Onyx", "Wren", "Juno", "Fable", "Cinder", "Moss", "Tarn"
+    ];
+
+    protected override GameObject Construct() {
+        var scroll = new ScrollContext();
+        var built = Remember(0);
+        var rows = Enumerable.Range(0, RowCount).ToArray();
+
+        return new Layout {
+            FlexController = {
+                FlexDirection = FlexDirection.Column,
+                AlignItems = Align.Center,
+                JustifyContent = Justify.Center,
+                Gap = 1.5f.pt
+            },
+
+            Children = {
+                new Layout {
+                    FlexController = {
+                        JustifyContent = Justify.SpaceBetween,
+                        AlignItems = Align.Center
+                    },
+
+                    FlexItem = {
+                        Size = new() { x = 78.pt, y = 5.pt }
+                    },
+
+                    Children = {
+                        new Label {
+                            FontSize = 3.5f,
+                            sText = scroll.Map(GetRowText)
+                        },
+
+                        new Label {
+                            FontSize = 3.5f,
+                            Color = new Color(0.35f, 0.75f, 1f),
+                            sText = built.Map(x => $"{x} cells built")
+                        }
+                    }
+                },
+
+                new Layout {
+                    FlexController = {
+                        AlignItems = Align.Stretch,
+                        Gap = 1.pt
+                    },
+
+                    Children = {
+                        new Table<int, Background> {
+                            FlexItem = {
+                                Size = new() { x = 76.pt, y = 32.pt }
+                            },
+
+                            ScrollContext = scroll,
+                            Items = rows,
+                            // Counts every cell the table builds, which stops
+                            // once the visible rows are covered
+                            ConstructCell = x => {
+                                built.Value++;
+                                return CreateRow(x);
+                            }
+                        },
+
+                        new Scrollbar {
+                            ScrollContext = scroll
+                        }
+                    }
+                },
+
+                new Repeater<(string text, int row), BsTextButton> {
+                    FlexController = {
+                        FlexDirection = FlexDirection.Row,
+                        Gap = 1.pt
+                    },
+
+                    Items = Jumps,
+                    ConstructCell = x => CreateJump(
+                        scroll,
+                        x.Item.text,
+                        row: x.Item.row
+                    )
+                }
+            }
+        }.Use();
+    }
+
+    // Scrolls there smoothly, so the table passes every row in between
+    private static BsTextButton CreateJump(
+        ScrollContext scroll,
+        string text,
+        int row
+    ) {
+        return new BsTextButton {
+            Text = text,
+            OnClick = () => scroll.ScrollTo(row * scroll.LineSize)
+        };
+    }
+
+    private static string GetRowText(ScrollContext scroll) {
+        var row = scroll.LineSize > 0f
+            ? Mathf.FloorToInt(scroll.ActualScrollPos / scroll.LineSize)
+            : 0;
+
+        return $"Row {row + 1:N0} of {RowCount:N0}";
+    }
+
+    [StateGen]
+    private static Background CreateRow(CellContext<int> context) {
+        return new Background {
+            FlexController = {
+                AlignItems = Align.Center,
+                Gap = 2.pt,
+                Padding = new() { left = 2.pt, right = 2.pt }
+            },
+
+            FlexItem = {
+                Size = new() { y = 6.pt }
+            },
+
+            Sprite = BeatSaberResources.Sprites.background,
+            PixelsPerUnit = 10f,
+            sColor = context.Map(x => Color.white with {
+                a = x.Index % 2 == 0 ? 0.06f : 0.12f
+            }),
+
+            Children = {
+                new Label {
+                    FlexItem = {
+                        Size = new() { x = 12.pt }
+                    },
+
+                    Alignment = TextAlignmentOptions.Left,
+                    FontSize = 3.5f,
+                    Color = Color.white with { a = 0.5f },
+                    sText = context.Map(x => $"#{x.Item + 1:N0}")
+                },
+
+                new Background {
+                    FlexItem = {
+                        Size = 3.pt
+                    },
+
+                    Sprite = BeatSaberResources.Sprites.background,
+                    PixelsPerUnit = 30f,
+                    sColor = context.Map(x => Color.HSVToRGB(
+                        h: x.Item * 0.137f % 1f,
+                        s: 0.6f,
+                        v: 1f
+                    ))
+                },
+
+                new Label {
+                    FlexItem = {
+                        FlexGrow = 1f
+                    },
+
+                    Alignment = TextAlignmentOptions.Left,
+                    FontSize = 3.5f,
+                    sText = context.Map(x =>
+                        $"{Names[x.Item * 7 % Names.Length]} {x.Item % 97 + 1}"
+                    )
+                },
+
+                new Label {
+                    Alignment = TextAlignmentOptions.Right,
+                    FontSize = 3.5f,
+                    Color = new Color(0.35f, 0.75f, 1f),
+                    sText = context.Map(x =>
+                        $"{1000000 - x.Item * 9:N0}"
+                    )
+                }
+            }
+        };
+    }
+}
+```
+</Playground>
+
+[Performance Benchmarks](/docs/reactive/performance) has every number. You do give up BSML's hot reload and rebuild
+instead, though the [Playground](/playground) covers quick experiments.
 
 ### Integration
 
 BSML connects markup to code through strings, so a typo only shows up when the view is parsed. A Reactive view is plain
 C# in one class, so a typo is a compile error, and your IDE can navigate and rename through it.
 
-<Screenshot src="/assets/intro/compile-error.gif" alt="Misspelling sText as sTxt underlines it and shows a compile error" />
+<Screenshot src="/assets/intro/rider-integration.webp" alt="Typing a binding in Rider, with the s-properties suggested as you type, then a misspelled sTxt marked as an error" />
 
-### Performance
-
-BSML parses its markup on every mount, and its `custom-list` parses a new cell for each row that comes into view. A
-[Table](/docs/reactive/lists/lists#tables-and-scrolling) reuses its cells instead. In our PC benchmarks, jumping far
-through a table of 100000 rows is 16 times faster, and mounting is 2.8 to 7.8 times faster.
-
-<Screenshot src="/assets/lists/table.gif" alt="A table of many rows scrolling and jumping far with no delay" />
-
-[Performance Benchmarks](/docs/reactive/performance) has every number. You do give up BSML's hot reload and rebuild
-instead, though the [Playground](/playground) covers quick experiments.
+In Debug, the Reactive compiler generates every s-property, so your IDE suggests them as you type. Release keeps
+only the ones you use, as [Compiler Internals](/docs/reactive/under-the-hood/compiler#debug-and-release) explains.
 
 ## Where to start
 

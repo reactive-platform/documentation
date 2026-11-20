@@ -1,0 +1,31 @@
+name: Check examples
+
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+concurrency:
+  group: check-examples-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-examples:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build the toolchain image
+        run: docker build --target toolchain --tag reactive-docs-ci - < Dockerfile
+
+      - name: Build the Playground and compile the examples
+        run: |
+          mkdir -p "$HOME/.cache/reactive-docs-ci"
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --volume "$GITHUB_WORKSPACE:/work" \
+            --workdir /work \
+            --volume "$HOME/.cache/reactive-docs-ci:/cache" \
+            --env HOME=/cache \
+            reactive-docs-ci \
+            sh -c 'yarn install --frozen-lockfile && yarn build:playground && yarn check:examples'

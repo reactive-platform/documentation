@@ -5,6 +5,7 @@ const withMDX = createMDX();
 /** @type {import('next').NextConfig} */
 const config = {
   reactStrictMode: true,
+  output: 'standalone',
   // Old slugs keep working after pages move. Extend this whenever a page is renamed.
   async redirects() {
     return [

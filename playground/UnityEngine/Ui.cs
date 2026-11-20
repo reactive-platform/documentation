@@ -5,6 +5,9 @@ using UnityEngine.EventSystems;
 namespace UnityEngine.EventSystems {
     public struct RaycastResult {
         public Vector3 worldPosition;
+
+        // The preview builds the raycast from the pointer, so there's always a hit
+        public bool isValid => true;
     }
 
     public class PointerEventData {

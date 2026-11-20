@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <BeatSaberSrc>$(ReactiveSrc)Reactive.BeatSaber\</BeatSaberSrc>
+        <SpritesDir>$(PlaygroundArtifacts)downloads\beat-saber-sdk-bundle\Assets\Resources\Sprites\</SpritesDir>
+    </PropertyGroup>
+    <ItemGroup>
+        <Compile Include="$(BeatSaberSrc)**\*.cs" LinkBase="BeatSaber" />
+
+        <Compile Remove="$(BeatSaberSrc)Plugin.cs" />
+        <Compile Remove="$(BeatSaberSrc)Patches\**" />
+
+        <Compile Remove="$(BeatSaberSrc)BeatSaberUtils.cs" />
+        <Compile Remove="$(BeatSaberSrc)Components\ScrollArea\VRScrollAdapter.cs" />
+        <Compile Remove="$(BeatSaberSrc)Resources\Game\GameResources.cs" />
+        <Compile Remove="$(BeatSaberSrc)Resources\SDK\BeatSaberResources.cs" />
+
+        <EmbeddedResource Include="$(SpritesDir)*.png" LogicalName="%(Filename)%(Extension)" />
+
+        <ProjectReference Include="..\UnityEngine\UnityEngine.csproj" />
+        <ProjectReference Include="..\Reactive\Reactive.csproj" />
+        <ProjectReference Include="..\Reactive.Components\Reactive.Components.csproj" />
+        <ProjectReference Include="$(ReactiveSrc)Reactive.Compiler\Reactive.Compiler.csproj"
+                          ReferenceOutputAssembly="false"
+                          OutputItemType="Analyzer" />
+    </ItemGroup>
+</Project>

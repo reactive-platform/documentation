@@ -1,4 +1,4 @@
-const CLANG_URL = 'https://cdn.jsdelivr.net/npm/@yowasp/clang@__CLANG_VERSION__/gen/bundle.js';
+const CLANG_URL = './clang/bundle.js';
 const DIAGNOSTIC = /^(.+?):(\d+):(\d+): (fatal error|error|warning|note): (.*)$/;
 const APP_ENTRY = '\nextern "C" reactive::IReactiveComponent* playground_create_app() { return new App(); }\n';
 const LINK_ARGS = ['-mexec-model=reactor', '-Wl,-z,stack-size=1048576', '-Wl,--stack-first'];

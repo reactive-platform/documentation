@@ -1,0 +1,22 @@
+{
+  "beat-saber-sdk-bundle": {
+    "repository": "https://github.com/reactive-platform/beat-saber-sdk-bundle.git",
+    "commit": "3f0c5f3e5e3e45357c3220dc020a2dc0d6109a9e"
+  },
+  "reactive-mono": {
+    "repository": "https://github.com/reactive-platform/reactive-mono.git",
+    "commit": "e0e4d0e6763ded0e4d9227086ffb9b00d2436782"
+  },
+  "reactive-quest": {
+    "repository": "https://github.com/reactive-platform/reactive-quest.git",
+    "commit": "743aba6fa378e820d5555fdf676ef8e339e45528"
+  },
+  "yoga-binding": {
+    "repository": "https://github.com/reactive-platform/yoga-binding.git",
+    "commit": "c7b15f83552fe7ad7d089ff868ab0798366333d2"
+  },
+  "clang": {
+    "package": "@yowasp/clang",
+    "version": "22.0.0-git20542-10"
+  }
+}

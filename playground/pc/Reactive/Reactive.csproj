@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <ItemGroup>
+        <Compile Include="$(ReactiveSrc)Reactive\**\*.cs" LinkBase="Reactive" />
+
+        <Compile Remove="$(ReactiveSrc)Reactive\CompilerServices.cs" />
+        <Compile Remove="$(ReactiveSrc)Reactive\Layout\Flex\Yoga\YogaLibrary.cs" />
+        <Compile Remove="$(ReactiveSrc)Reactive\Layout\Flex\Yoga\YogaNative.cs" />
+
+        <Compile Include="..\Yoga\YogaNative.Bridge.cs" />
+        <Compile Include="$(PlaygroundArtifacts)build\pc\yoga\YogaNative.g.cs" />
+
+        <ProjectReference Include="..\UnityEngine\UnityEngine.csproj" />
+        <ProjectReference Include="$(ReactiveSrc)Reactive.Compiler\Reactive.Compiler.csproj"
+                          ReferenceOutputAssembly="false"
+                          OutputItemType="Analyzer" />
+    </ItemGroup>
+</Project>

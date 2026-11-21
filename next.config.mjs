@@ -6,6 +6,8 @@ const withMDX = createMDX();
 const config = {
   reactStrictMode: true,
   output: 'standalone',
+  // Inlined at build, so pages rendered at runtime agree with the prerendered ones about which site this is
+  env: {SITE_URL: process.env.SITE_URL ?? ''},
   // Old slugs keep working after pages move. Extend this whenever a page is renamed.
   async redirects() {
     return [

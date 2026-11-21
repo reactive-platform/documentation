@@ -8,6 +8,7 @@ import {
 import { notFound } from 'next/navigation';
 import { createRelativeLink } from 'fumadocs-ui/mdx';
 import { getMDXComponents } from '@/mdx-components';
+import { smallPreview } from '@/lib/site';
 
 export default async function Page(props: {
   params: Promise<{ slug?: string[] }>;
@@ -48,5 +49,6 @@ export async function generateMetadata(props: {
   return {
     title: page.data.title,
     description: page.data.description,
+    ...smallPreview(page.data.image),
   };
 }

@@ -6,6 +6,8 @@ RUN apk add --no-cache nodejs npm yarn python3 \
 
 FROM toolchain AS build
 
+# The address the site is served at, see lib/site.ts
+ARG SITE_URL
 WORKDIR /src
 COPY . .
 RUN --mount=type=cache,target=/root/.nuget/packages \

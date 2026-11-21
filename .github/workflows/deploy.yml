@@ -17,11 +17,12 @@ jobs:
     env:
       SITE: ${{ github.ref_name == 'main' && 'reactive-docs' || 'reactive-docs-stage' }}
       PORT: ${{ github.ref_name == 'main' && '3000' || '3001' }}
+      SITE_URL: ${{ github.ref_name == 'main' && 'https://reactiveui.beatleader.com' || 'https://stage.reactiveui.beatleader.com' }}
     steps:
       - uses: actions/checkout@v5
 
       - name: Build the site
-        run: docker build --target site --tag "$SITE" .
+        run: docker build --target site --tag "$SITE" --build-arg SITE_URL="$SITE_URL" .
 
       - name: Replace the running site
         run: |

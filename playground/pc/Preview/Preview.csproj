@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk.WebAssembly">
+    <Import Project="..\App.props" />
+    <PropertyGroup>
+        <WasmBuildNative>true</WasmBuildNative>
+    </PropertyGroup>
+    <ItemGroup>
+        <NativeFileReference Include="$(PlaygroundArtifacts)build\pc\yoga\yoga.a" />
+    </ItemGroup>
+</Project>

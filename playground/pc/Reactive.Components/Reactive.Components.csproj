@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <ItemGroup>
+        <Compile Include="$(ReactiveSrc)Reactive.Components\**\*.cs" LinkBase="Components" />
+
+        <ProjectReference Include="..\UnityEngine\UnityEngine.csproj" />
+        <ProjectReference Include="..\Reactive\Reactive.csproj" />
+        <ProjectReference Include="$(ReactiveSrc)Reactive.Compiler\Reactive.Compiler.csproj"
+                          ReferenceOutputAssembly="false"
+                          OutputItemType="Analyzer" />
+    </ItemGroup>
+</Project>

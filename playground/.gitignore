@@ -1,6 +1,1 @@
-deps/
-bin/
-obj/
-Yoga/yoga.a
-Yoga/obj/
-Reactive/YogaNative.g.cs
+artifacts/

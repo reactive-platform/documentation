@@ -65,18 +65,39 @@ These apply to every C# example in `content/docs`, new or edited.
 
 ## Playground build
 
-Run `yarn build:playground` (`playground/build.mjs`). Flags: `--reactive-repo <path>`, `--quest-repo <path>`,
-`--yoga-binding <path>`, `--rebuild-yoga`, `--skip-quest`.
+Run `yarn build:playground` (`playground/build.mjs`), and `yarn build` runs it before `next build` too. It calls one
+step per part from `playground/scripts`: `deps.mjs` downloads the inputs, `pc.mjs` builds Yoga and the .NET apps, and
+`quest.mjs` builds the C++ runtime. Flags: `--reactive-repo <path>`, `--quest-repo <path>`, `--rebuild-yoga`,
+`--skip-quest`.
 
-- Deploys don't build the Playground. The site serves the committed `public/playground`, so rebuild and commit
-  it to ship a Reactive update.
-- `Yoga/yoga.a` is only rebuilt when missing, so pass `--rebuild-yoga` after changing `Yoga/bridge.cpp` or the Yoga
-  commit.
-- Use dotnet SDK 11.
+- The Playground isn't committed. Every input it downloads is pinned in `playground/lock.json`, so bump the commits
+  there to ship a Reactive update. `--reactive-repo` and `--quest-repo` copy a local checkout in place of the locked
+  one.
+- `yarn check:examples` (`tools/check-examples.mjs`) compiles every docs example that should compile against the last
+  build, the way the Playground compiles it. Examples with `status="error"` or `status="warning"` aren't checked.
+- Both workflows run on the self-hosted VPS runner with the root `Dockerfile`, whose toolchain stage is Microsoft's
+  Alpine image of SDK 10.0.404 with the rest from apk. Check examples builds the Playground and runs
+  `yarn check:examples` on every push. Deploy builds the site image on pushes to `main` and `stage`, and replaces
+  `reactive-docs` on `127.0.0.1:3000` (reactiveui.beatleader.com) or `reactive-docs-stage` on `127.0.0.1:3001`
+  (stage.reactiveui.beatleader.com) on the VPS.
+- The runner uses rootless Docker, where root in a container is the runner user on the host, so don't pass `--user`
+  to `docker run`.
+- `playground/lock.json` has one top-level entry per input, with no grouping by platform.
+- The Quest worker compiles snippets with the clang the build ships in `web/quest/clang`, so the `clang` entry pins
+  both the build and the browser compiler. They must match, because `prelude.pch` only loads in the same clang.
+- Everything the build downloads or produces goes in `playground/artifacts`: one folder per lock entry in `downloads`
+  (kept while it matches the lock), intermediate files in `build/pc` and `build/quest`, and the runtimes in `web`.
+  The site serves `web` at `/playground` through `app/(home)/playground/[...path]/route.ts`. Keep generated files out
+  of the source folders.
+- `build/pc/yoga/yoga.a` is only rebuilt when missing, so pass `--rebuild-yoga` after changing `Yoga/bridge.cpp` or
+  the Yoga commit.
+- Use dotnet SDK 10.0.400 or later. The 10.0.1xx SDKs that distros package reject `extension(in GraphicState state)`
+  with CS9301.
 - `dotnet publish` must run outside the sandbox.
 - Never pass `--skip-sign-check`.
 - The Quest output doesn't use `reactive-mono`, so a library update doesn't require rebuilding it.
-- When the library adds Unity API calls, `playground/UnityEngine` may need matching members.
+- When the library adds Unity API calls, `playground/pc/UnityEngine` (and `playground/quest/UnityEngine` for Quest) may
+  need matching members.
 
 ## Logo
 

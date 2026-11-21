@@ -1,0 +1,43 @@
+<Project>
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <RuntimeIdentifier>browser-wasm</RuntimeIdentifier>
+        <PublishTrimmed>true</PublishTrimmed>
+        <TrimMode>partial</TrimMode>
+        <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
+        <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <InvariantTimezone>true</InvariantTimezone>
+        <DebuggerSupport>false</DebuggerSupport>
+        <EventSourceSupport>false</EventSourceSupport>
+        <EnableDefaultCompressionFormats>false</EnableDefaultCompressionFormats>
+        <BuildCompressionFormats>gzip</BuildCompressionFormats>
+        <PublishCompressionFormats>gzip</PublishCompressionFormats>
+    </PropertyGroup>
+    <ItemGroup>
+        <TrimmerRootAssembly Include="System.Private.CoreLib" />
+        <TrimmerRootAssembly Include="System.Runtime" />
+        <TrimmerRootAssembly Include="System.Collections" />
+        <TrimmerRootAssembly Include="System.Linq" />
+        <TrimmerRootAssembly Include="System.Console" />
+        <TrimmerRootAssembly Include="System.Memory" />
+        <TrimmerRootAssembly Include="System.Threading" />
+        <TrimmerRootAssembly Include="System.Threading.Tasks" />
+        <TrimmerRootAssembly Include="System.Runtime.InteropServices" />
+        <TrimmerRootAssembly Include="System.Text.RegularExpressions" />
+        <TrimmerRootAssembly Include="System.ObjectModel" />
+        <TrimmerRootAssembly Include="System.ComponentModel" />
+        <TrimmerRootAssembly Include="System.Net.Http" />
+        <TrimmerRootAssembly Include="System.Text.Json" />
+        <TrimmerRootAssembly Include="netstandard" />
+        <TrimmerRootAssembly Include="UnityEngine" />
+        <TrimmerRootAssembly Include="Reactive" />
+        <TrimmerRootAssembly Include="Reactive.Components" />
+        <TrimmerRootAssembly Include="Reactive.BeatSaber" />
+
+        <ProjectReference Include="..\UnityEngine\UnityEngine.csproj" />
+        <ProjectReference Include="..\Reactive\Reactive.csproj" />
+        <ProjectReference Include="..\Reactive.Components\Reactive.Components.csproj" />
+        <ProjectReference Include="..\Reactive.BeatSaber\Reactive.BeatSaber.csproj" />
+    </ItemGroup>
+</Project>

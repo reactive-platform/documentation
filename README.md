@@ -24,8 +24,9 @@ yarn build:playground
 yarn check:examples
 ```
 
-CI runs both in the toolchain stage of the `Dockerfile`. Pushes to `main` are deployed to the VPS by building its `site`
-stage, which runs the built server:
+CI runs both in the toolchain stage of the `Dockerfile`. Pushes to `main` and `stage` are deployed to the VPS, at
+reactiveui.beatleader.com and stage.reactiveui.beatleader.com, by building its `site` stage, which runs the built
+server:
 
 ```bash
 docker build --target site --tag reactive-docs .

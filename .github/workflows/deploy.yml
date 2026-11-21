@@ -2,28 +2,33 @@ name: Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, stage]
   workflow_dispatch:
 
 concurrency:
-  group: deploy
+  group: deploy-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
   deploy:
+    # main serves reactiveui.beatleader.com and stage serves stage.reactiveui.beatleader.com
+    if: github.ref_name == 'main' || github.ref_name == 'stage'
     runs-on: self-hosted
+    env:
+      SITE: ${{ github.ref_name == 'main' && 'reactive-docs' || 'reactive-docs-stage' }}
+      PORT: ${{ github.ref_name == 'main' && '3000' || '3001' }}
     steps:
       - uses: actions/checkout@v5
 
       - name: Build the site
-        run: docker build --target site --tag reactive-docs .
+        run: docker build --target site --tag "$SITE" .
 
       - name: Replace the running site
         run: |
-          docker rm --force reactive-docs || true
+          docker rm --force "$SITE" || true
           docker run --detach \
-            --name reactive-docs \
+            --name "$SITE" \
             --restart unless-stopped \
-            --publish 127.0.0.1:3000:3000 \
-            reactive-docs
+            --publish "127.0.0.1:$PORT:3000" \
+            "$SITE"
           docker image prune --force

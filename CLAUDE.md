@@ -77,8 +77,11 @@ step per part from `playground/scripts`: `deps.mjs` downloads the inputs, `pc.mj
   build, the way the Playground compiles it. Examples with `status="error"` or `status="warning"` aren't checked.
 - Both workflows run on the self-hosted VPS runner with the root `Dockerfile`, whose toolchain stage is Microsoft's
   Alpine image of SDK 10.0.404 with the rest from apk. Check examples builds the Playground and runs
-  `yarn check:examples` on every push. Deploy builds the site image on pushes to `main` and replaces the
-  `reactive-docs` container on the VPS, which serves the site on `127.0.0.1:3000`.
+  `yarn check:examples` on every push. Deploy builds the site image on pushes to `main` and `stage`, and replaces
+  `reactive-docs` on `127.0.0.1:3000` (reactiveui.beatleader.com) or `reactive-docs-stage` on `127.0.0.1:3001`
+  (stage.reactiveui.beatleader.com) on the VPS.
+- The runner uses rootless Docker, where root in a container is the runner user on the host, so don't pass `--user`
+  to `docker run`.
 - `playground/lock.json` has one top-level entry per input, with no grouping by platform.
 - The Quest worker compiles snippets with the clang the build ships in `web/quest/clang`, so the `clang` entry pins
   both the build and the browser compiler. They must match, because `prelude.pch` only loads in the same clang.

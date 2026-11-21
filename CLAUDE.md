@@ -80,7 +80,7 @@ step per part from `playground/scripts`: `deps.mjs` downloads the inputs, `pc.mj
 - Both workflows run on the self-hosted VPS runner with the root `Dockerfile`, whose toolchain stage is Microsoft's
   Alpine image of SDK 10.0.404 with the rest from apk. Check examples builds the Playground and runs
   `yarn check:examples` on every push. Deploy builds the site image on pushes to `main` and `stage`, and replaces
-  `reactive-docs` on `127.0.0.1:3000` (reactiveui.beatleader.com) or `reactive-docs-stage` on `127.0.0.1:3001`
+  `reactive-docs` on `127.0.0.1:3000` (reactiveui.beatleader.com) or `reactive-docs-stage` on `127.0.0.1:3002`
   (stage.reactiveui.beatleader.com) on the VPS.
 - Each build gets its host as `SITE_URL` (`lib/site.ts`), which link previews and the sitemap use. Only the
   reactiveui.beatleader.com build is indexed, and builds without the arg, like local ones, use that host.

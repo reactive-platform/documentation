@@ -16,7 +16,7 @@ jobs:
     runs-on: self-hosted
     env:
       SITE: ${{ github.ref_name == 'main' && 'reactive-docs' || 'reactive-docs-stage' }}
-      PORT: ${{ github.ref_name == 'main' && '3000' || '3001' }}
+      PORT: ${{ github.ref_name == 'main' && '3000' || '3002' }}
       SITE_URL: ${{ github.ref_name == 'main' && 'https://reactiveui.beatleader.com' || 'https://stage.reactiveui.beatleader.com' }}
     steps:
       - uses: actions/checkout@v5
